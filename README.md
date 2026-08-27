@@ -6,9 +6,9 @@ FPL AI Predictor is a data-driven Fantasy Premier League decision engine. Its lo
 
 ## Current Status
 
-**Phase 4 — Expected Points Modeling**
+**Phase 5 — Personalized Live Inference**
 
-Phases 1–3 remain intact. Phase 4 adds expanding-window out-of-fold predictions, conservative Ridge/Random Forest/HistGradientBoosting comparisons, governed feature ablations, position-specific experiments, numerical calibration, empirical uncertainty bands, residual analysis, and persisted production artifacts. It does not perform squad or transfer optimization.
+Phases 1–4 remain intact. Phase 5 connects the frozen position-specific Ridge model to the current official FPL season, validates live/training feature parity, predicts every current player, and optionally imports a public FPL entry and its current 15-player squad. It does not optimize transfers, lineups, or captaincy.
 
 The `attacking_score` is deliberately a simple, explainable baseline:
 
@@ -65,6 +65,20 @@ Train and evaluate Phase 4 separately so the final test season remains isolated:
 .venv/bin/python scripts/train_models.py
 .venv/bin/python scripts/evaluate_models.py
 ```
+
+Generate current player predictions without an entry ID:
+
+```bash
+.venv/bin/python scripts/live_predictions.py
+```
+
+Generate a personalized report using the numeric ID visible in an FPL team URL:
+
+```bash
+.venv/bin/python scripts/live_squad_report.py --entry-id 123456
+```
+
+Alternatively set `FPL_ENTRY_ID` in `.env`; the CLI argument takes precedence.
 
 ## Generated Data
 
@@ -164,6 +178,22 @@ Calibration is reported in fixed `<2`, `2–4`, `4–6`, `6–8`, and `8+` xPts 
 Phase 4 outputs include `model_results*.csv`, `oof_predictions.csv`, `calibration_results.csv`, `residual_analysis.csv`, `test_predictions_with_uncertainty.csv`, and `phase4_summary.json` under `data/historical/ml/`.
 
 Current limitations remain substantial: predictions are compressed toward the mean, high-ceiling recall is weak, uncertainty is empirical rather than conditional/probabilistic, historic price/FDR timing is snapshot-dependent, and the expected-minutes proxy is not a dedicated availability model.
+
+## Phase 5 Live Inference
+
+Live inference uses only official JSON endpoints: `bootstrap-static/`, `fixtures/`, `event/{gw}/live/`, `entry/{id}/`, `entry/{id}/event/{gw}/picks/`, and `entry/{id}/history/`. Completed Gameweek live payloads are normalized to player × Gameweek rows; target rows are then appended and passed through the same Phase 2 shift-before-roll implementation. Target-GW outcomes never enter rolling features.
+
+The persisted metadata is authoritative. All required feature names must exist with compatible dtypes before a position model is loaded. Missing or mismatched inputs fail loudly. Sparse early-season rolling fields remain missing and are handled by the model's training-fitted imputers; they are not silently filled with zero.
+
+The lightweight minutes proxy uses only lagged one/three/five-GW minutes and start rates. `minutes_confidence` describes history depth and published availability uncertainty. Official `status`, `chance_of_playing_next_round`, and `news` are preserved. When FPL publishes a percentage, displayed xPts are multiplied by that percentage; when it does not, no probability is invented and raw display xPts remain unchanged.
+
+Raw Ridge predictions are preserved. User-facing xPts and lower uncertainty bounds are floored at zero. Position-specific empirical residual ranges come from Phase 4 pre-test OOF residuals and are descriptive rather than guaranteed probabilities.
+
+Public picks preserve purchase price, selling price, current price, multiplier, captain/vice flags, and bench order. The public API does not reliably expose the current free-transfer balance, so it is reported as unknown. No credentials are stored.
+
+Current xPts estimates are optimized for average expected-points ranking and are not yet reliable estimates of explosive 10+ point outcomes. This is especially important for future captaincy decisions.
+
+Live outputs are `data/live/player_predictions.csv`, optional `my_squad.csv`, and `live_summary.json`. The refreshed Phase 1 fixture summaries continue to provide next-three and next-five-Gameweek context; Phase 5 does not fabricate future availability or apply the one-GW model repeatedly to future dates.
 
 ## Roadmap
 

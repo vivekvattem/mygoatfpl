@@ -14,7 +14,7 @@ PLAYER_COLUMNS = [
     "expected_assists", "expected_goal_involvements", "expected_goals_conceded",
     "selected_by_percent", "transfers_in", "transfers_out",
     "transfers_in_event", "transfers_out_event", "form", "points_per_game",
-    "chance_of_playing_next_round", "status", "player",
+    "chance_of_playing_next_round", "status", "news", "news_added", "player",
 ]
 
 NUMERIC_COLUMNS = [
@@ -42,6 +42,7 @@ def load_players(bootstrap: dict[str, Any]) -> pd.DataFrame:
 
     players["team_name"] = players["team"].map(teams)
     players["position"] = players["element_type"].map(positions)
+    players["position"] = players["position"].replace({"GKP": "GK"})
     players["price"] = pd.to_numeric(players["now_cost"], errors="coerce") / 10.0
     for column in NUMERIC_COLUMNS:
         players[column] = pd.to_numeric(players[column], errors="coerce")

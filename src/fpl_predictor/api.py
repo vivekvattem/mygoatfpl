@@ -46,3 +46,27 @@ class FPLAPIClient:
         if not isinstance(payload, list):
             raise FPLAPIError("FPL fixtures response was not a JSON list")
         return payload
+
+    def get_event_live(self, gameweek: int) -> dict[str, Any]:
+        payload = self._get_json(f"event/{gameweek}/live/")
+        if not isinstance(payload, dict):
+            raise FPLAPIError(f"FPL live Gameweek {gameweek} response was not a JSON object")
+        return payload
+
+    def get_entry(self, entry_id: int) -> dict[str, Any]:
+        payload = self._get_json(f"entry/{entry_id}/")
+        if not isinstance(payload, dict):
+            raise FPLAPIError(f"FPL entry {entry_id} response was not a JSON object")
+        return payload
+
+    def get_entry_picks(self, entry_id: int, gameweek: int) -> dict[str, Any]:
+        payload = self._get_json(f"entry/{entry_id}/event/{gameweek}/picks/")
+        if not isinstance(payload, dict):
+            raise FPLAPIError(f"FPL picks response for entry {entry_id} was not a JSON object")
+        return payload
+
+    def get_entry_history(self, entry_id: int) -> dict[str, Any]:
+        payload = self._get_json(f"entry/{entry_id}/history/")
+        if not isinstance(payload, dict):
+            raise FPLAPIError(f"FPL history response for entry {entry_id} was not a JSON object")
+        return payload

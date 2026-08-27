@@ -14,4 +14,6 @@ data/historical/ml/*.csv
 data/historical/ml/*.json
 models/*.joblib
 models/*.json
+data/live/*.csv
+data/live/*.json
 !data/**/.gitkeep

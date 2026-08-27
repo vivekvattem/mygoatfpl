@@ -35,7 +35,7 @@ def _mean_last(history: pd.DataFrame, column: str, window: int, home: bool | Non
 
 
 def calculate_team_strength(
-    matches: pd.DataFrame, windows: tuple[int, ...] = (3, 5, 10)
+    matches: pd.DataFrame, windows: tuple[int, ...] = (3, 5, 10), through_gw: int | None = None
 ) -> pd.DataFrame:
     """Calculate ratings from fixtures strictly before each target Gameweek.
 
@@ -47,7 +47,7 @@ def calculate_team_strength(
         return pd.DataFrame()
     rows: list[dict[str, object]] = []
     for season, season_matches in matches.groupby("season", sort=True):
-        gameweeks = range(1, int(season_matches["gw"].max()) + 1)
+        gameweeks = range(1, (through_gw or int(season_matches["gw"].max())) + 1)
         for gw in gameweeks:
             league_history = season_matches[season_matches["gw"] < gw]
             league_attack = pd.to_numeric(league_history["goals_for"], errors="coerce").mean()

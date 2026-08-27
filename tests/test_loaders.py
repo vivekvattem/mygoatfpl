@@ -30,3 +30,9 @@ def test_missing_optional_columns_do_not_crash():
     assert len(result) == 1
     assert "expected_assists" in result.columns
     assert np.isnan(result.iloc[0]["expected_assists"])
+
+
+def test_live_goalkeeper_code_is_canonicalized():
+    data = bootstrap({"id": 1, "team": 8, "element_type": 1, "now_cost": 45})
+    data["element_types"] = [{"id": 1, "singular_name_short": "GKP"}]
+    assert load_players(data).iloc[0]["position"] == "GK"

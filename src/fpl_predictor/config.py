@@ -13,6 +13,7 @@ HISTORICAL_RAW_DIR = HISTORICAL_DATA_DIR / "raw"
 HISTORICAL_PROCESSED_DIR = HISTORICAL_DATA_DIR / "processed"
 HISTORICAL_ML_DIR = HISTORICAL_DATA_DIR / "ml"
 MODEL_DIR = PROJECT_ROOT / "models"
+LIVE_DATA_DIR = DATA_DIR / "live"
 HISTORICAL_SOURCE_URL = (
     "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data"
 )
@@ -31,5 +32,6 @@ def ensure_data_directories() -> None:
         HISTORICAL_PROCESSED_DIR,
         HISTORICAL_ML_DIR,
         MODEL_DIR,
+        LIVE_DATA_DIR,
     ):
         directory.mkdir(parents=True, exist_ok=True)
