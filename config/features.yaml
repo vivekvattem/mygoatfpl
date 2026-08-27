@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "valid_timings": ["pre_gw", "identifier", "target", "excluded"],
+  "identifiers": ["season", "gw", "season_player_id", "player_id", "player_name", "team"],
+  "targets": ["target_points", "target_minutes"],
+  "excluded": ["predicted_points_baseline"],
+  "static_features": {
+    "position": ["player", "category", "historical_fpl", "FPL position known before the target Gameweek."],
+    "price": ["value", "float", "historical_fpl", "Price recorded for the target Gameweek."],
+    "is_home": ["fixture", "boolean", "historical_fpl", "True only when all target fixtures are at home; missing for mixed doubles."],
+    "fixture_count": ["fixture", "integer", "historical_fpl", "Number of fixtures in the target Gameweek."],
+    "home_fixture_count": ["fixture", "integer", "historical_fpl", "Home fixtures in the target Gameweek."],
+    "away_fixture_count": ["fixture", "integer", "historical_fpl", "Away fixtures in the target Gameweek."],
+    "avg_fixture_difficulty": ["fixture", "float", "historical_fpl", "Mean official FDR for target fixtures."],
+    "min_fixture_difficulty": ["fixture", "float", "historical_fpl", "Minimum official FDR for target fixtures."],
+    "max_fixture_difficulty": ["fixture", "float", "historical_fpl", "Maximum official FDR for target fixtures."],
+    "is_blank": ["fixture", "boolean", "derived", "Whether the player's team has no target-GW fixture."],
+    "did_not_play_because_team_blank": ["fixture", "boolean", "derived", "Distinguishes team blanks from played zeroes."],
+    "xGI_per90_last_3_missing": ["missingness", "boolean", "derived", "Missingness indicator for prior-three-GW xGI per 90."],
+    "minutes_last_3_missing": ["missingness", "boolean", "derived", "Missingness indicator for prior-three-GW minutes."]
+    ,"expected_minutes_proxy": ["minutes", "float", "derived", "Transparent weighted proxy using only lagged minutes and start rates."]
+  },
+  "rolling_metrics": {
+    "minutes": "minutes", "starts": "starts", "points": "total_points",
+    "goals": "goals_scored", "assists": "assists", "xG": "expected_goals",
+    "xA": "expected_assists", "xGI": "expected_goal_involvements",
+    "bonus": "bonus", "bps": "bps", "influence": "influence",
+    "creativity": "creativity", "threat": "threat", "ict_index": "ict_index"
+  },
+  "rolling_windows": [1, 3, 5],
+  "derived_rolling": ["games", "start_rate", "xG_per90", "xA_per90", "xGI_per90", "points_per90", "points_per_million", "xGI_per_million"],
+  "legacy_team_features": ["team_goals_for", "team_goals_against", "team_points", "opponent_goals_for", "opponent_goals_against", "opponent_points"],
+  "team_strength_windows": [3, 5, 10]
+}
