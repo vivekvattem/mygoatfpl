@@ -8,5 +8,8 @@ __pycache__/
 data/raw/*.json
 data/raw/archive/*.json
 data/processed/*.csv
-data/historical/*
+data/historical/raw/**/*.csv
+data/historical/processed/**/*.csv
+data/historical/ml/*.csv
+data/historical/ml/*.json
 !data/**/.gitkeep
