@@ -58,7 +58,8 @@ def run_live_predictions(client: FPLAPIClient | None = None) -> dict[str, object
     print("\nTop projected players:")
     print(predictions.nlargest(10, "display_xpts")[["player", "team", "position", "display_xpts"]].to_string(index=False, float_format=lambda x: f"{x:.2f}"))
     print("\nCurrent xPts estimates are optimized for average expected-points ranking\nand are not yet reliable estimates of explosive 10+ point outcomes.")
-    return {"predictions": predictions, "summary": summary, "bootstrap": bootstrap, "api": api}
+    return {"predictions": predictions, "features": features, "fixtures": fixtures,
+            "summary": summary, "bootstrap": bootstrap, "api": api, "artifacts": artifacts}
 
 
 if __name__ == "__main__":

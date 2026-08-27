@@ -10,6 +10,10 @@ from .config import BASE_API_URL, REQUEST_TIMEOUT
 class FPLAPIError(RuntimeError):
     """Raised when the official FPL API cannot be queried successfully."""
 
+    def __init__(self, message: str, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
 
 class FPLAPIClient:
     """Small, mockable HTTP client for the public FPL endpoints."""
@@ -31,7 +35,9 @@ class FPLAPIClient:
             response.raise_for_status()
             return response.json()
         except (requests.RequestException, ValueError) as exc:
-            raise FPLAPIError(f"Failed to fetch valid FPL data from {url}: {exc}") from exc
+            response = getattr(exc, "response", None)
+            status_code = getattr(response, "status_code", None)
+            raise FPLAPIError(f"Failed to fetch valid FPL data from {url}: {exc}", status_code=status_code) from exc
 
     def get_bootstrap_static(self) -> dict[str, Any]:
         """Return current players, teams, positions, and Gameweek metadata."""

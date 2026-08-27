@@ -6,9 +6,9 @@ FPL AI Predictor is a data-driven Fantasy Premier League decision engine. Its lo
 
 ## Current Status
 
-**Phase 5 — Personalized Live Inference**
+**Phase 6 — Personalized Decision Optimizer**
 
-Phases 1–4 remain intact. Phase 5 connects the frozen position-specific Ridge model to the current official FPL season, validates live/training feature parity, predicts every current player, and optionally imports a public FPL entry and its current 15-player squad. It does not optimize transfers, lineups, or captaincy.
+Phases 1–5 remain intact. Phase 6 turns validated live projections and an explicit squad state into legal lineup, bench, captaincy, and transfer decisions. It does not execute transfers or implement a UI/LLM layer.
 
 The `attacking_score` is deliberately a simple, explainable baseline:
 
@@ -79,6 +79,20 @@ Generate a personalized report using the numeric ID visible in an FPL team URL:
 ```
 
 Alternatively set `FPL_ENTRY_ID` in `.env`; the CLI argument takes precedence.
+
+Run lineup and captaincy while leaving unknown financial state explicit:
+
+```bash
+.venv/bin/python scripts/optimize_squad.py --entry-id 8974446 --squad-file data/live/manual_squad.json
+```
+
+Run an explicitly labelled transfer scenario when bank/free transfers are known but selling prices are not:
+
+```bash
+.venv/bin/python scripts/optimize_squad.py --entry-id 8974446 --squad-file data/live/manual_squad.json \
+  --bank 0.0 --free-transfers 1 --horizon 5 --risk-profile balanced \
+  --assume-selling-price-current
+```
 
 ## Generated Data
 
@@ -189,11 +203,41 @@ The lightweight minutes proxy uses only lagged one/three/five-GW minutes and sta
 
 Raw Ridge predictions are preserved. User-facing xPts and lower uncertainty bounds are floored at zero. Position-specific empirical residual ranges come from Phase 4 pre-test OOF residuals and are descriptive rather than guaranteed probabilities.
 
-Public picks preserve purchase price, selling price, current price, multiplier, captain/vice flags, and bench order. The public API does not reliably expose the current free-transfer balance, so it is reported as unknown. No credentials are stored.
+Public picks preserve purchase price, selling price, current price, multiplier, captain/vice flags, and bench order. They are resolved only from Gameweeks evidenced by entry history and are explicitly labelled **latest public squad**: a public historical snapshot is never assumed to be the current pre-deadline squad. Late-created entries can validly have no historical picks; this produces a clean unavailable report rather than an error.
+
+For a current pre-deadline view, provide a local JSON file:
+
+```bash
+.venv/bin/python scripts/live_squad_report.py --entry-id 123456 --squad-file data/live/manual_squad.json
+```
+
+It must contain a `players` list of exactly 15 current players (by `player_id`, or exact normalized full name then unique web name), with the legal 2 GK / 5 DEF / 5 MID / 3 FWD composition and at most three per club. Optional `purchase_price`, `selling_price`, captain/vice flags, `bank`, and `free_transfers` are preserved; omitted historical prices remain unknown. Ambiguous names and invalid squads fail clearly. The public API does not reliably expose the current free-transfer balance, so it is otherwise reported as unknown. No credentials are stored.
 
 Current xPts estimates are optimized for average expected-points ranking and are not yet reliable estimates of explosive 10+ point outcomes. This is especially important for future captaincy decisions.
 
-Live outputs are `data/live/player_predictions.csv`, optional `my_squad.csv`, and `live_summary.json`. The refreshed Phase 1 fixture summaries continue to provide next-three and next-five-Gameweek context; Phase 5 does not fabricate future availability or apply the one-GW model repeatedly to future dates.
+Live outputs are `data/live/player_predictions.csv`, optional `my_squad.csv`, and `live_summary.json`; the latter records `squad_source` (`public_api`, `manual_file`, or `unavailable`) and `squad_gameweek`. The refreshed Phase 1 fixture summaries continue to provide next-three and next-five-Gameweek context; Phase 5 does not fabricate future availability or apply the one-GW model repeatedly to future dates. Any future transfer workflow must reject unavailable, stale public, or otherwise unverified current-squad state rather than optimizing it.
+
+## Phase 6 Decision Optimizer
+
+The optimizer uses SciPy's bundled HiGHS mixed-integer solver. Starting-XI selection enforces 11 players, exactly one goalkeeper, 3–5 defenders, 2–5 midfielders, and 1–3 forwards. The remaining goalkeeper occupies the dedicated goalkeeper bench slot; the three outfield substitutes are ordered by availability-adjusted xPts. Full-squad selection enforces 2 GK / 5 DEF / 5 MID / 3 FWD, a maximum of three players per club, and the supplied budget.
+
+Captaincy profiles are transparent. `safe` emphasizes expected points and minutes while penalizing uncertainty; `balanced` adds moderate ceiling weight; `aggressive` gives the heuristic ceiling score more influence. The ceiling score combines pre-GW mean xPts, xGI/90, ICT form, expected minutes, and fixture quality. It is a secondary ranking aid—not a calibrated probability of a haul.
+
+For GW+1 through GW+5, known rolling form, availability, and expected-minutes inputs remain fixed. The production model is reapplied with each future Gameweek's known official fixture context. Blanks receive zero and Doubles retain aggregate fixture context. Weighted horizons are `1.0`; `1.0/0.9/0.8`; and `1.0/0.9/0.8/0.7/0.6`.
+
+Transfer analysis evaluates zero, one, and pruned two-transfer paths, preserving position, budget, uniqueness, and club legality. Hits cost `4 × max(0, transfers - free_transfers)`. A free move must clear the configurable 1.5-point horizon threshold or the result is `ROLL TRANSFER`. One-transfer pools retain the strongest projection and value candidates per position. Two-transfer analysis additionally limits outgoing consideration to the weakest projected squad players and uses a smaller top-candidate pool per position; these bounds are configurable function parameters.
+
+Bank and free transfers are never inferred. Supply them with `--bank` and `--free-transfers` or `data/live/manual_state.json`; CLI values win. Unknown selling prices block transfer analysis unless `--assume-selling-price-current` is explicitly supplied, in which case every report identifies scenario mode. Stale public squads require `--allow-stale-squad`; manual pre-deadline squads are accepted normally.
+
+Synchronize the manual snapshot after making a transfer on the FPL website:
+
+```bash
+.venv/bin/python scripts/update_my_squad.py --out "Dominik Szoboszlai" --in "Bukayo Saka"
+```
+
+The updater uses exact current-bootstrap identity resolution, preserves lineup/captaincy metadata where possible, requires explicit captain/vice reassignment when removed, validates the final squad, and creates a timestamped backup before overwriting. Unknown prices remain null.
+
+Decision outputs are `optimized_xi.csv`, `transfer_candidates.csv`, `two_transfer_candidates.csv`, `replacement_shortlists.csv`, and `decision_summary.json` under `data/live/`. Experimental full-squad selection is available with `--full-squad-budget`; it is not labelled a Wildcard recommendation.
 
 ## Roadmap
 

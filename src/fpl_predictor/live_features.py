@@ -20,7 +20,7 @@ def current_season_label(events: pd.DataFrame) -> str:
     return f"{year}-{str(year + 1)[-2:]}"
 
 
-def _fixture_context(fixtures: list[dict[str, Any]], teams: pd.DataFrame) -> pd.DataFrame:
+def fixture_context(fixtures: list[dict[str, Any]], teams: pd.DataFrame) -> pd.DataFrame:
     normalized = normalize_fixtures(fixtures)
     names = teams.set_index("id")["name"].to_dict()
     normalized["team_name"] = normalized.team.map(names)
@@ -37,7 +37,7 @@ def normalize_live_history(bootstrap: dict[str, Any], fixtures: list[dict[str, A
                            event_payloads: dict[int, dict[str, Any]]) -> pd.DataFrame:
     """Create one current player × completed GW row, including blanks and doubles."""
     players, events, teams = load_players(bootstrap), load_events(bootstrap), load_teams(bootstrap)
-    context = _fixture_context(fixtures, teams)
+    context = fixture_context(fixtures, teams)
     season = current_season_label(events)
     rows = []
     for gw, payload in sorted(event_payloads.items()):
@@ -69,7 +69,7 @@ def build_live_features(bootstrap: dict[str, Any], fixtures: list[dict[str, Any]
     players, events, teams = load_players(bootstrap), load_events(bootstrap), load_teams(bootstrap)
     history = normalize_live_history(bootstrap, fixtures, event_payloads)
     season = current_season_label(events)
-    context = _fixture_context(fixtures, teams)
+    context = fixture_context(fixtures, teams)
     targets = []
     for player in players.itertuples(index=False):
         fixture = context[(context.gw.eq(target_gw)) & context.team_name.eq(player.team_name)]
