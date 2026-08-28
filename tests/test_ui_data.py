@@ -3,6 +3,7 @@ import json
 
 import pandas as pd
 
+import fpl_predictor.ui.data as ui_data
 from fpl_predictor.ui.data import (
     DashboardBundle, DataStatus, dashboard_summary, data_status,
     load_manual_squad_view, run_pipeline_refresh, transfer_cache_key, transfer_readiness,
@@ -103,3 +104,28 @@ def test_transfer_cache_key_changes_with_optimizer_inputs(tmp_path):
     first = AppSettings(squad_file=squad, bank=0, free_transfers=1, horizon=5)
     changed = AppSettings(squad_file=squad, bank=0.1, free_transfers=1, horizon=5)
     assert transfer_cache_key(first) != transfer_cache_key(changed)
+
+
+def test_uploaded_squad_rebuilds_runtime_xi_without_live_refresh(monkeypatch, tmp_path, legal_squad):
+    live_dir = tmp_path / "live"; raw_dir = tmp_path / "raw"; historical_dir = tmp_path / "historical"
+    live_dir.mkdir(); raw_dir.mkdir(); historical_dir.mkdir()
+    monkeypatch.setattr(ui_data, "LIVE_DATA_DIR", live_dir)
+    monkeypatch.setattr(ui_data, "RAW_DATA_DIR", raw_dir)
+    monkeypatch.setattr(ui_data, "HISTORICAL_ML_DIR", historical_dir)
+    players = legal_squad.copy()
+    players["owned"] = False
+    players["xGI_last_3"] = 1.0; players["points_last_3"] = players.availability_adjusted_xpts
+    players["start_rate_last_3"] = 1.0; players["value"] = 1.0
+    players["ceiling_score"] = players.availability_adjusted_xpts * 10
+    players["uncertainty_width"] = 2.0; players["minutes_confidence"] = "high"
+    players["availability"] = "available"; players["chance_of_playing_next_round"] = None
+    players.to_csv(live_dir / "player_decision_universe.csv", index=False)
+    (live_dir / "live_summary.json").write_text(json.dumps({"target_gw": 2, "schema_validation": {"passed": True}}))
+    squad_path = tmp_path / "session_manual_squad.json"
+    squad_path.write_text(json.dumps({"players": [{"player_id": int(value), "multiplier": 1}
+                                                    for value in players.player_id]}))
+    bundle = ui_data.load_dashboard_bundle(AppSettings(squad_file=squad_path))
+    assert len(bundle.squad) == 15 and len(bundle.optimized_xi) == 11
+    assert bundle.decision_summary["runtime_personalization"]
+    assert bundle.decision_summary["captain"]
+    assert bundle.one_transfers.empty and bundle.two_transfers.empty

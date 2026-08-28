@@ -11,10 +11,12 @@ from typing import Any
 
 import pandas as pd
 
+from fpl_predictor.captaincy import rank_captains
 from fpl_predictor.config import HISTORICAL_ML_DIR, LIVE_DATA_DIR, PROJECT_ROOT, RAW_DATA_DIR
 from fpl_predictor.fixtures import get_next_gameweek, normalize_fixtures
 from fpl_predictor.fixture_calendar import build_fixture_calendar, team_fixture_signals
 from fpl_predictor.live_features import current_season_label
+from fpl_predictor.lineup_optimizer import optimize_starting_xi
 from fpl_predictor.loaders import load_events
 from fpl_predictor.team_strength import build_team_match_rows, calculate_team_strength
 from fpl_predictor.signals import add_player_signals
@@ -139,8 +141,10 @@ def load_confirmed_fixture_calendar(target_gw: int | None, horizon: int = 10) ->
     return build_fixture_calendar(fixtures, teams, int(target_gw), horizon) if not teams.empty else pd.DataFrame()
 
 
-def load_manual_squad_view(path: str | Path, predictions: pd.DataFrame) -> pd.DataFrame:
+def load_manual_squad_view(path: str | Path | None, predictions: pd.DataFrame) -> pd.DataFrame:
     source = project_relative_path(path)
+    if source is None:
+        return pd.DataFrame()
     payload = _json(source)
     entries = payload.get("players")
     if not isinstance(entries, list) or predictions.empty:
@@ -185,7 +189,9 @@ def transfer_cache_key(settings: AppSettings) -> str:
     """Stable cache discriminator for a transfer result, including live-output freshness."""
     squad_path = project_relative_path(settings.squad_file)
     live_path = LIVE_DATA_DIR / "player_predictions.csv"
-    def fingerprint(path: Path) -> str:
+    def fingerprint(path: Path | None) -> str:
+        if path is None:
+            return "none"
         if not path.exists():
             return "missing"
         return f"{path.stat().st_mtime_ns}:{hashlib.sha256(path.read_bytes()).hexdigest()[:16]}"
@@ -221,8 +227,8 @@ def load_dashboard_bundle(settings: AppSettings) -> DashboardBundle:
     # manual optimization as though it came from a newly selected public squad.
     squad_path = project_relative_path(settings.squad_file)
     decision_path = LIVE_DATA_DIR / "decision_summary.json"
-    manual_missing = settings.squad_source == "manual_file" and not squad_path.exists()
-    manual_newer = (settings.squad_source == "manual_file" and squad_path.exists()
+    manual_missing = settings.squad_source == "manual_file" and (squad_path is None or not squad_path.exists())
+    manual_newer = (settings.squad_source == "manual_file" and squad_path is not None and squad_path.exists()
                     and decision_path.exists() and squad_path.stat().st_mtime > decision_path.stat().st_mtime)
     settings_mismatch = bool(decision) and any((
         decision.get("horizon") != settings.horizon,
@@ -239,6 +245,8 @@ def load_dashboard_bundle(settings: AppSettings) -> DashboardBundle:
     if settings.squad_source == "public_api" and live.get("squad_source") != "public_api":
         squad = pd.DataFrame()
     one_transfers = _csv(LIVE_DATA_DIR / "transfer_candidates.csv")
+    two_transfers = _csv(LIVE_DATA_DIR / "two_transfer_candidates.csv")
+    replacements = _csv(LIVE_DATA_DIR / "replacement_shortlists.csv")
     calendar = load_confirmed_fixture_calendar(live.get("target_gw"), 10)
     fixture_signals = (team_fixture_signals(calendar, int(live["target_gw"]), 5)
                        if not calendar.empty and live.get("target_gw") is not None else pd.DataFrame())
@@ -255,15 +263,37 @@ def load_dashboard_bundle(settings: AppSettings) -> DashboardBundle:
                            "fixtures_next_5", "average_fdr_5"}]
         existing = [column for column in signal_columns if column != "player_id" and column in squad]
         squad = squad.drop(columns=existing).merge(predictions[signal_columns], on="player_id", how="left")
+    optimized_xi = _csv(LIVE_DATA_DIR / "optimized_xi.csv")
+    # An uploaded session squad intentionally invalidates persisted decisions made for
+    # a different squad. Rebuild lineup/captain views from current predictions without
+    # refreshing live FPL data or presenting stale transfer paths.
+    if not decision and settings.squad_source == "manual_file" and not squad.empty:
+        try:
+            lineup = optimize_starting_xi(squad, f"weighted_xpts_{settings.horizon}")
+            captaincy = rank_captains(lineup.starting_11, settings.risk_profile)
+            optimized_xi = lineup.starting_11.copy()
+            optimized_xi["captain"] = optimized_xi.player_id.eq(captaincy.captain.player_id)
+            optimized_xi["vice_captain"] = optimized_xi.player_id.eq(captaincy.vice_captain.player_id)
+            decision = {
+                "target_gw": live.get("target_gw"), "entry_id": settings.entry_id,
+                "squad_source": "manual_file", "optimized_xi_xpts": float(lineup.starting_xpts),
+                "captain": captaincy.captain.player, "vice_captain": captaincy.vice_captain.player,
+                "formation": lineup.formation, "transfer_decision": "UNAVAILABLE",
+                "runtime_personalization": True,
+            }
+            one_transfers = pd.DataFrame(); two_transfers = pd.DataFrame(); replacements = pd.DataFrame()
+        except (ValueError, RuntimeError):
+            pass
     phase4 = _json(HISTORICAL_ML_DIR / "phase4_summary.json")
-    status_path = LIVE_DATA_DIR / ("decision_summary.json" if decision else "live_summary.json")
+    status_path = LIVE_DATA_DIR / ("decision_summary.json" if decision and not decision.get("runtime_personalization")
+                                   else "live_summary.json")
     return DashboardBundle(
         predictions=predictions,
         squad=squad,
-        optimized_xi=_csv(LIVE_DATA_DIR / "optimized_xi.csv"),
+        optimized_xi=optimized_xi,
         one_transfers=one_transfers,
-        two_transfers=_csv(LIVE_DATA_DIR / "two_transfer_candidates.csv"),
-        replacements=_csv(LIVE_DATA_DIR / "replacement_shortlists.csv"),
+        two_transfers=two_transfers,
+        replacements=replacements,
         fixtures=load_fixture_table(),
         model_results=_csv(HISTORICAL_ML_DIR / "model_results.csv"),
         calibration=_csv(HISTORICAL_ML_DIR / "calibration_results.csv"),
@@ -303,7 +333,7 @@ def run_pipeline_refresh(settings: AppSettings, timeout: int = 300) -> RefreshRe
         command = [sys.executable, str(PROJECT_ROOT / "scripts" / "live_squad_report.py"),
                    "--entry-id", str(settings.entry_id)]
         success_message = "Official FPL data, predictions, and the latest public squad snapshot refreshed. Optimization remains disabled for public historical picks."
-    elif not squad_path.exists():
+    elif squad_path is None or not squad_path.exists():
         command = [sys.executable, str(PROJECT_ROOT / "scripts" / "live_predictions.py")]
         success_message = f"Player predictions refreshed. Personalized optimization was skipped because the manual squad file was not found: {squad_path}"
     else:

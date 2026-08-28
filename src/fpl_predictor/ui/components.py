@@ -8,7 +8,7 @@ import streamlit as st
 
 from fpl_predictor.ui.data import DashboardBundle, dashboard_summary, load_dashboard_bundle, run_pipeline_refresh
 from fpl_predictor.ui.formatting import money, points, scenario_mode_label
-from fpl_predictor.ui.state import AppSettings, SESSION_DEFAULTS, project_relative_path
+from fpl_predictor.ui.state import AppSettings, SESSION_DEFAULTS, get_active_squad_file, project_relative_path
 
 
 def configure_page(title: str) -> None:
@@ -23,7 +23,7 @@ def initialize_session() -> None:
 def current_settings() -> AppSettings:
     return AppSettings(
         entry_id=int(st.session_state.entry_id), squad_source=st.session_state.squad_source,
-        squad_file=project_relative_path(st.session_state.squad_file),
+        squad_file=get_active_squad_file(st.session_state),
         bank=float(st.session_state.bank) if st.session_state.bank_known else None,
         free_transfers=int(st.session_state.free_transfers) if st.session_state.free_transfers_known else None,
         horizon=int(st.session_state.horizon), risk_profile=st.session_state.risk_profile,
@@ -46,7 +46,8 @@ def render_sidebar() -> tuple[AppSettings, DashboardBundle]:
         st.number_input("FPL Entry ID (demo default)", min_value=1, step=1, key="entry_id")
         st.selectbox("Squad source", ["manual_file", "public_api"], key="squad_source",
                      format_func=lambda value: "Manual pre-deadline" if value == "manual_file" else "Public post-deadline")
-        st.text_input("Squad file", key="squad_file")
+        st.text_input("Squad file (optional)", key="squad_file_path_input",
+                      placeholder="data/live/manual_squad.json")
         st.checkbox("Bank known", key="bank_known")
         if st.session_state.bank_known:
             st.number_input("Bank (£m)", min_value=0.0, step=0.1, key="bank")

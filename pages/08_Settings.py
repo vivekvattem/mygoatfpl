@@ -1,16 +1,22 @@
 import json
 import streamlit as st
 
-from fpl_predictor.config import LIVE_DATA_DIR, RAW_DATA_DIR
-from fpl_predictor.entry import load_manual_squad
+from fpl_predictor.config import RAW_DATA_DIR
 from fpl_predictor.loaders import load_players
 from fpl_predictor.squad_update import update_manual_squad
-from fpl_predictor.ui.components import configure_page, render_sidebar
+from fpl_predictor.ui.components import (
+    cached_analyst_context, cached_bundle, configure_page, render_sidebar,
+)
+from fpl_predictor.ui.state import (
+    activate_uploaded_squad, active_squad_source, write_uploaded_squad_to_runtime,
+)
 
 configure_page("Settings")
 settings, bundle = render_sidebar()
 st.title("Settings")
 st.caption("Settings are runtime-only. No passwords, private FPL sessions, or API secrets are used.")
+if message := st.session_state.pop("last_squad_upload_message", None):
+    st.success(message)
 
 st.subheader("Transfer scenario")
 st.number_input("Minimum expected gain", min_value=0.0, step=0.1, key="minimum_gain")
@@ -28,19 +34,27 @@ for index, (key, label) in enumerate((("chip_wildcard", "Wildcard"), ("chip_free
     chip_columns[index % 2].selectbox(label, ["unknown", "available", "used"], key=key)
 
 st.subheader("Manual squad upload")
-uploaded = st.file_uploader("Upload manual_squad.json", type="json")
-if uploaded is not None and st.button("Use uploaded squad for this session"):
+st.caption(f"Current active squad: **{active_squad_source(st.session_state)}**")
+if settings.squad_file is not None:
+    st.caption(f"Active file: {settings.squad_file.name}")
+uploaded = st.file_uploader("Upload manual_squad.json", type=["json"], key="squad_file_upload")
+if uploaded is not None and st.button("Use uploaded squad for this session", key="activate_uploaded_squad"):
     try:
-        payload = json.loads(uploaded.getvalue())
         bootstrap = json.loads((RAW_DATA_DIR / "bootstrap_static.json").read_text(encoding="utf-8"))
-        runtime = LIVE_DATA_DIR / "session_manual_squad.json"
-        runtime.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-        load_manual_squad(runtime, load_players(bootstrap))
-        st.session_state.squad_file = str(runtime)
-        st.cache_data.clear()
-        st.success("Uploaded squad validated. It is stored only in this runtime filesystem/session.")
+        runtime = write_uploaded_squad_to_runtime(uploaded.getvalue(), load_players(bootstrap))
+        activate_uploaded_squad(st.session_state, runtime)
+        # Only invalidates outputs derived from the selected squad; cached live API
+        # snapshots and model artifacts stay intact.
+        cached_bundle.clear()
+        cached_analyst_context.clear()
+        st.session_state.refresh_generation = st.session_state.get("refresh_generation", 0) + 1
+        st.session_state.last_squad_upload_message = (
+            "Uploaded squad validated and activated for this session. "
+            "Personalized dashboard views were rebuilt from current live predictions."
+        )
+        st.rerun()
     except (ValueError, OSError, json.JSONDecodeError) as exc:
-        st.error(f"Manual squad upload failed: {exc}")
+        st.error(f"Manual squad upload failed; the previous valid squad remains active: {exc}")
 
 st.subheader("Update Manual Squad")
 if bundle.squad.empty:
@@ -60,10 +74,14 @@ else:
     confirmed = st.checkbox("I confirm this local/session squad update")
     if st.button("Confirm Squad Update", disabled=not confirmed):
         try:
+            if settings.squad_file is None:
+                raise ValueError("No active manual squad file is available to update")
             bootstrap = json.loads((RAW_DATA_DIR / "bootstrap_static.json").read_text(encoding="utf-8"))
             backup, _ = update_manual_squad(settings.squad_file, load_players(bootstrap), player_out, player_in,
                                              captain=captain, vice_captain=vice)
-            st.cache_data.clear()
+            cached_bundle.clear()
+            cached_analyst_context.clear()
+            st.session_state.refresh_generation = st.session_state.get("refresh_generation", 0) + 1
             st.success(f"Squad updated and validated. Backup: {backup}")
         except (ValueError, OSError) as exc:
             st.error(f"Squad update failed: {exc}")
