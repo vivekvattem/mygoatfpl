@@ -1,7 +1,9 @@
+import numpy as np
 import pandas as pd
 
 from fpl_predictor.signals import (
     action_label, add_player_signals, availability_signal, minutes_signal, overall_signal,
+    percentile_signal,
 )
 
 
@@ -40,3 +42,32 @@ def test_player_signals_include_value_form_reasons_and_actions():
     assert {"overall_signal", "value_signal", "form_signal", "signal_reason", "risk_reason", "action"}.issubset(output)
     assert output.iloc[0].action == "BUY" and output.iloc[2].action == "SELL"
     assert output.iloc[0].value_signal == "GREEN" and output.iloc[2].value_signal == "RED"
+
+
+def test_percentile_signal_accepts_series_values_and_aligned_series_groups():
+    values = pd.Series([1.0, 2.0, 3.0], index=["a", "b", "c"])
+    groups = pd.Series(["X", "Y", "X"], index=["c", "a", "b"])
+    output = percentile_signal(values, groups)
+    assert output.index.equals(values.index)
+    assert output.tolist() == ["GREEN", "YELLOW", "GREEN"]
+
+
+def test_percentile_signal_accepts_numpy_arrays_and_list_groups():
+    output = percentile_signal(np.array([1.0, 2.0, 3.0]), ["MID", "MID", "MID"])
+    assert isinstance(output, pd.Series)
+    assert output.index.equals(pd.RangeIndex(3))
+    assert output.tolist() == ["RED", "GREEN", "GREEN"]
+
+
+def test_percentile_signal_accepts_list_values_and_ndarray_groups_with_missing_data():
+    output = percentile_signal([1.0, None, 3.0, 4.0], np.array(["DEF", "DEF", None, None], dtype=object))
+    assert output.index.equals(pd.RangeIndex(4))
+    assert output.iloc[1] == "GREY"
+    assert output.iloc[2] != "GREY" and output.iloc[3] != "GREY"
+
+
+def test_percentile_signal_preserves_series_index_without_groups():
+    values = pd.Series([1.0, np.nan, 3.0], index=pd.Index([101, 205, 999], name="player_id"))
+    output = percentile_signal(values)
+    assert output.index.equals(values.index)
+    assert output.loc[205] == "GREY"

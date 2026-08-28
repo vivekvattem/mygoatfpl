@@ -34,11 +34,33 @@ def minutes_signal(minutes: object, confidence: object, green_minutes: float = 7
     return "GREEN"
 
 
-def percentile_signal(values: pd.Series, groups: pd.Series | None = None) -> pd.Series:
-    numeric = pd.to_numeric(values, errors="coerce")
-    ranks = numeric.groupby(groups).rank(pct=True) if groups is not None else numeric.rank(pct=True)
-    return pd.Series(np.select([ranks.ge(2 / 3), ranks.le(1 / 3)], ["GREEN", "RED"], default="YELLOW"),
-                     index=values.index).where(numeric.notna(), "GREY")
+def percentile_signal(values: pd.Series | np.ndarray | list[object],
+                      groups: pd.Series | np.ndarray | list[object] | None = None) -> pd.Series:
+    """Return position-relative traffic lights for Series and array-like inputs.
+
+    ``pd.to_numeric`` can return an ndarray for ndarray-like inputs.  Materialising a
+    Series first keeps grouping, ranking, missing-value handling, and index alignment
+    stable across pandas/NumPy versions.
+    """
+    if isinstance(values, pd.Series):
+        numeric = pd.to_numeric(values, errors="coerce")
+    else:
+        numeric = pd.to_numeric(pd.Series(values), errors="coerce")
+
+    if groups is not None:
+        if isinstance(groups, pd.Series):
+            aligned_groups = groups.reindex(numeric.index)
+        else:
+            aligned_groups = pd.Series(groups, index=numeric.index)
+        ranks = numeric.groupby(aligned_groups, dropna=False).rank(pct=True)
+    else:
+        ranks = numeric.rank(pct=True)
+
+    signals = pd.Series(
+        np.select([ranks.ge(2 / 3), ranks.le(1 / 3)], ["GREEN", "RED"], default="YELLOW"),
+        index=numeric.index,
+    )
+    return signals.where(numeric.notna(), "GREY")
 
 
 def overall_signal(row: pd.Series) -> tuple[str, str]:
