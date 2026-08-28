@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -49,6 +50,19 @@ class RefreshResult:
     success: bool
     message: str
     completed_at: datetime
+
+
+@dataclass(frozen=True)
+class TransferReadiness:
+    """Explicit UI state before the expensive Phase 6 optimizer is invoked."""
+
+    code: str
+    heading: str
+    message: str
+
+    @property
+    def ready(self) -> bool:
+        return self.code == "ready"
 
 
 def _csv(path: Path) -> pd.DataFrame:
@@ -119,6 +133,62 @@ def load_manual_squad_view(path: str | Path, predictions: pd.DataFrame) -> pd.Da
         return pd.DataFrame()
     identity = [column for column in predictions if column != "player_id"]
     return picks.merge(predictions[["player_id", *identity]], on="player_id", how="left", validate="one_to_one")
+
+
+def transfer_readiness(settings: AppSettings, squad: pd.DataFrame) -> TransferReadiness:
+    """Describe why transfer analysis can or cannot safely run."""
+    unknown = []
+    if settings.bank is None:
+        unknown.append("Bank: Unknown")
+    if settings.free_transfers is None:
+        unknown.append("Free transfers: Unknown")
+    if unknown:
+        return TransferReadiness(
+            "financial_unknown", "TRANSFER ANALYSIS PAUSED",
+            "\n".join([*unknown, "", "Enter these values in Settings to enable legal transfer optimization."]),
+        )
+    if squad.empty:
+        return TransferReadiness("squad_unavailable", "SQUAD UNAVAILABLE",
+                                 "Load a valid manual squad and current live predictions before transfer analysis.")
+    selling = pd.to_numeric(squad.get("selling_price"), errors="coerce") if "selling_price" in squad else pd.Series(dtype=float)
+    if selling.empty or selling.isna().any():
+        if not settings.assume_selling_price_current:
+            return TransferReadiness(
+                "selling_prices_unknown", "SELLING PRICES UNKNOWN",
+                "Authoritative transfer advice is unavailable because current selling prices are not public for this "
+                "pre-deadline manual squad.\n\nYou can either:\n1. enter selling prices manually, or\n"
+                "2. enable Scenario Mode to temporarily assume current price = selling price.",
+            )
+    return TransferReadiness("ready", "TRANSFER ANALYSIS READY",
+                             "Scenario estimates use current price = selling price." if settings.assume_selling_price_current
+                             else "Authoritative financial inputs are available.")
+
+
+def transfer_cache_key(settings: AppSettings) -> str:
+    """Stable cache discriminator for a transfer result, including live-output freshness."""
+    squad_path = project_relative_path(settings.squad_file)
+    live_path = LIVE_DATA_DIR / "player_predictions.csv"
+    def fingerprint(path: Path) -> str:
+        if not path.exists():
+            return "missing"
+        return f"{path.stat().st_mtime_ns}:{hashlib.sha256(path.read_bytes()).hexdigest()[:16]}"
+    payload = {
+        "entry_id": settings.entry_id, "squad_source": settings.squad_source,
+        "squad": fingerprint(squad_path), "live_predictions": fingerprint(live_path),
+        "bank": settings.bank, "free_transfers": settings.free_transfers,
+        "horizon": settings.horizon, "risk_profile": settings.risk_profile,
+        "minimum_gain": settings.minimum_gain,
+        "assume_selling_price_current": settings.assume_selling_price_current,
+    }
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def run_transfer_analysis(settings: AppSettings, timeout: int = 300) -> RefreshResult:
+    """Run only the existing optimizer command, on an explicit Transfers-page action."""
+    if settings.squad_source != "manual_file":
+        return RefreshResult(False, "Transfer analysis requires a current manual squad; public picks are inspection-only.",
+                             datetime.now(timezone.utc))
+    return run_pipeline_refresh(settings, timeout=timeout)
 
 
 def load_dashboard_bundle(settings: AppSettings) -> DashboardBundle:

@@ -5,7 +5,7 @@ import pandas as pd
 
 from fpl_predictor.ui.data import (
     DashboardBundle, DataStatus, dashboard_summary, data_status,
-    load_manual_squad_view, run_pipeline_refresh,
+    load_manual_squad_view, run_pipeline_refresh, transfer_cache_key, transfer_readiness,
 )
 from fpl_predictor.ui.state import AppSettings
 from fpl_predictor.ui.charts import projection_scatter
@@ -82,3 +82,24 @@ def test_sparse_minutes_are_safe_for_projection_chart():
     figure = projection_scatter(players)
     sizes = [size for trace in figure.data for size in trace.marker.size]
     assert all(pd.notna(size) and size >= 0 for size in sizes)
+
+
+def test_transfer_readiness_explains_unknown_bank_and_free_transfers():
+    state = transfer_readiness(AppSettings(bank=None, free_transfers=None), pd.DataFrame())
+    assert state.code == "financial_unknown"
+    assert "Bank: Unknown" in state.message and "Free transfers: Unknown" in state.message
+
+
+def test_transfer_readiness_blocks_unknown_selling_prices_unless_scenario_enabled():
+    squad = pd.DataFrame({"selling_price": [float("nan")], "player_id": [1]})
+    strict = transfer_readiness(AppSettings(bank=0, free_transfers=1), squad)
+    scenario = transfer_readiness(AppSettings(bank=0, free_transfers=1, assume_selling_price_current=True), squad)
+    assert strict.code == "selling_prices_unknown"
+    assert scenario.ready
+
+
+def test_transfer_cache_key_changes_with_optimizer_inputs(tmp_path):
+    squad = tmp_path / "squad.json"; squad.write_text('{"players": []}')
+    first = AppSettings(squad_file=squad, bank=0, free_transfers=1, horizon=5)
+    changed = AppSettings(squad_file=squad, bank=0.1, free_transfers=1, horizon=5)
+    assert transfer_cache_key(first) != transfer_cache_key(changed)

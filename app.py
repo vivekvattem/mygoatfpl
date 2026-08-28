@@ -1,6 +1,15 @@
 """Streamlit entrypoint for the read-only FPL decision dashboard."""
 
+from pathlib import Path
+import sys
+
 import streamlit as st
+
+# Streamlit Community Cloud runs from the repository root; adding the local
+# src layout explicitly also keeps local launches reliable from paths with spaces.
+SRC_ROOT = Path(__file__).resolve().parent / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
 
 from fpl_predictor.ui.components import (
     configure_page, render_data_status, render_downloads, render_kpis,

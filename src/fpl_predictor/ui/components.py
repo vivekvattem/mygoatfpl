@@ -59,6 +59,8 @@ def render_sidebar() -> tuple[AppSettings, DashboardBundle]:
             st.caption("Free transfers: Unknown")
         st.select_slider("Planning horizon", options=[1, 3, 5], key="horizon")
         st.selectbox("Risk profile", ["safe", "balanced", "aggressive"], key="risk_profile")
+        st.checkbox("Scenario Mode: assume current price = selling price", key="assume_selling_price_current",
+                    help="Use only for temporary transfer estimates when authoritative selling prices are unknown.")
         if st.session_state.assume_selling_price_current:
             st.warning(scenario_mode_label(True))
         refresh = st.button("Refresh FPL Data", type="primary", width="stretch")

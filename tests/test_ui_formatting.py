@@ -1,7 +1,8 @@
 import pandas as pd
 
 from fpl_predictor.ui.formatting import (
-    decision_status_label, format_player_table, safe_public_summary, scenario_mode_label,
+    decision_status_label, format_player_table, prepare_one_transfer_table, prepare_replacement_table,
+    prepare_two_transfer_table, safe_public_summary, scenario_mode_label, transfer_signal, transfer_status_badge,
 )
 
 
@@ -22,3 +23,26 @@ def test_player_table_has_readable_columns_and_rounding():
 def test_public_summary_removes_secret_shaped_fields():
     result = safe_public_summary({"entry_id": 1, "password": "bad", "token": "bad", "captain": "A"})
     assert result == {"entry_id": 1, "captain": "A"}
+
+
+def test_transfer_signals_are_transparent_and_not_colour_only():
+    assert transfer_signal(1.5, 1.5).startswith("GREEN")
+    assert transfer_signal(0.2, 1.5).startswith("YELLOW")
+    assert transfer_signal(0, 1.5).startswith("RED")
+    assert transfer_status_badge(None, None, 1.5, blocked=True).startswith("GREY")
+
+
+def test_transfer_tables_render_without_downloads():
+    one = pd.DataFrame({"out": ["A"], "in": ["B"], "selling_price": [5.0], "buy_price": [5.1],
+                        "new_bank": [0.2], "hit_cost": [0], "gain_1gw": [0.3], "gain_3gw": [0.8],
+                        "gain_5gw": [1.6], "net_gain_5gw": [1.6], "in_id": [2]})
+    two = pd.DataFrame({"out_1": ["A"], "out_2": ["C"], "in_1": ["B"], "in_2": ["D"],
+                        "hit_cost": [4], "gain_3gw": [1.0], "gain_5gw": [2.0], "net_gain_5gw": [-2.0]})
+    players = pd.DataFrame({"player_id": [2], "team": ["X"], "price": [5.1],
+                            "availability_adjusted_xpts": [4.0], "weighted_xpts_3": [10.0],
+                            "weighted_xpts_5": [15.0], "availability": ["available"]})
+    assert {"OUT", "IN", "Signal"}.issubset(prepare_one_transfer_table(one, 5, 1.5))
+    assert {"OUT 1", "IN 2", "Signal"}.issubset(prepare_two_transfer_table(two, 5, 1.5))
+    assert {"Player", "Expected Gain", "Availability", "Signal"}.issubset(
+        prepare_replacement_table(one, players, 5, 1.5)
+    )

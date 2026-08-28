@@ -1,13 +1,11 @@
 import json
-from pathlib import Path
-
 import streamlit as st
 
 from fpl_predictor.config import LIVE_DATA_DIR, RAW_DATA_DIR
 from fpl_predictor.entry import load_manual_squad
 from fpl_predictor.loaders import load_players
 from fpl_predictor.squad_update import update_manual_squad
-from fpl_predictor.ui.components import configure_page, initialize_session, render_sidebar
+from fpl_predictor.ui.components import configure_page, render_sidebar
 
 configure_page("Settings")
 settings, bundle = render_sidebar()
@@ -16,9 +14,8 @@ st.caption("Settings are runtime-only. No passwords, private FPL sessions, or AP
 
 st.subheader("Transfer scenario")
 st.number_input("Minimum expected gain", min_value=0.0, step=0.1, key="minimum_gain")
-st.checkbox("Assume unknown selling prices equal current prices", key="assume_selling_price_current",
-            help="Explicit scenario mode only; this is not authoritative financial state.")
 st.number_input("Live cache TTL (seconds)", min_value=60, max_value=3600, step=60, key="refresh_ttl")
+st.caption("Scenario Mode is controlled from the shared sidebar: Assume current price = selling price.")
 if st.session_state.assume_selling_price_current:
     st.warning("SCENARIO MODE will be clearly marked on transfer outputs.")
 
