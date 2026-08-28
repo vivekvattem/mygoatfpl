@@ -1,6 +1,9 @@
 import pandas as pd
 
-from fpl_predictor.ui.components import action_badge, risk_summary, signal_badge
+from fpl_predictor.ui.components import (
+    action_badge, analyst_evidence_text, analyst_suggested_questions, risk_summary, signal_badge,
+)
+from fpl_predictor.analyst.citations import freshness_label
 
 from fpl_predictor.ui.formatting import (
     decision_status_label, format_player_table, prepare_one_transfer_table, prepare_replacement_table,
@@ -56,3 +59,11 @@ def test_signal_helpers_always_include_text_and_risk_reason():
                             "risk_reason": ["low expected minutes"], "weighted_xpts_5": [3.0]})
     summary = risk_summary(players)
     assert summary.iloc[0].risk_reason and summary.iloc[0].overall_signal == "RED"
+
+
+def test_analyst_evidence_badges_and_suggestions_are_accessible_text():
+    text = analyst_evidence_text(["ml_projection", "fixture_calendar"])
+    assert "ML Projection" in text and "Fixture Calendar" in text
+    suggestions = analyst_suggested_questions()
+    assert "What should I do this week?" in suggestions and len(suggestions) >= 6
+    assert freshness_label(True) == "STALE DATA" and freshness_label(False) == "LIVE DATA"

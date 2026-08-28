@@ -13,7 +13,9 @@ from fpl_predictor.chips import (  # noqa: E402
     budget_legal_chip_gains, build_chip_plan, resolve_chip_states,
 )
 from fpl_predictor.config import RAW_DATA_DIR  # noqa: E402
-from fpl_predictor.ui.components import chip_card, configure_page, render_sidebar, signal_badge  # noqa: E402
+from fpl_predictor.ui.components import (  # noqa: E402
+    chip_card, configure_page, render_explain_button, render_sidebar, signal_badge,
+)
 from fpl_predictor.ui.data import dashboard_summary, data_status  # noqa: E402
 
 configure_page("Chip Planner")
@@ -72,4 +74,5 @@ with st.expander("Methodology and reasons", expanded=False):
         st.write(f"Bench Boost: {item.bench_boost_reason}")
         st.write(f"Triple Captain: {item.triple_captain_reason}")
 st.download_button("Download chip_plan.csv", plan.to_csv(index=False), file_name="chip_plan.csv", mime="text/csv")
+render_explain_button("Should I use a chip?", bundle, settings, "explain_chip")
 st.caption("GREEN is a strong modeled opportunity, YELLOW is plausible, RED is poor timing, and GREY means used/unknown/insufficient data.")

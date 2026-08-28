@@ -6,9 +6,9 @@ FPL AI Predictor is a data-driven Fantasy Premier League decision engine. Its lo
 
 ## Current Status
 
-**Phase 8 — DGW/BGW + Signals + Chip Planner**
+**Phase 9 — AI Analyst**
 
-Phases 1–7 remain intact. Phase 8 adds a confirmed official fixture calendar, explainable player/team traffic-light signals, and a read-only Wildcard/Free Hit/Bench Boost/Triple Captain planner. All major results render directly in Streamlit. The app never logs in to FPL, executes transfers, or activates chips.
+Phases 1–8 remain intact. Phase 9 adds a conversational, evidence-grounded explanation layer over the existing model, optimizers, fixture engine, signals, availability, and chip planner. The analyst is not a separate prediction engine. All major results render directly in Streamlit, and the app never logs in to FPL, executes transfers, or activates chips.
 
 The original Phase 1 `attacking_score` remains a simple, explainable baseline:
 
@@ -58,6 +58,16 @@ Run the Phase 3 experiment with:
 ```bash
 .venv/bin/python scripts/run_baselines.py
 ```
+
+Optional analyst-provider configuration belongs in `.env` locally or uncommitted Streamlit secrets:
+
+```text
+FPL_ANALYST_PROVIDER=openai
+FPL_ANALYST_API_KEY=
+FPL_ANALYST_MODEL=
+```
+
+Leaving these empty disables provider calls and keeps the complete deterministic analyst available.
 
 Train and evaluate Phase 4 separately so the final test season remains isolated:
 
@@ -317,6 +327,18 @@ The chip planner is advisory and shows at least eight upcoming Gameweeks. Chip s
 
 Chip signals are thresholded and visible as text: `GREEN` is a strong modeled opportunity, `YELLOW` is plausible but not exceptional, `RED` is poor timing, and `GREY` means used/unknown/insufficient data. Future fixtures may be rescheduled after refresh, expected minutes remain heuristic, high-ceiling compression remains, and projections beyond GW+5 lack player-level model output. There are no bookmaker odds, no private login, no automatic chip execution, and no private pre-deadline chip state unless supplied.
 
+## Phase 9 AI Analyst
+
+`Ask FPL AI` follows a guarded pipeline: deterministic intent routing, conservative player-name resolution, compact evidence selection, deterministic recommendation, optional provider explanation, and post-generation grounding validation. Relevant context is selected by intent rather than sending all 616 players. Transfer questions receive the selected player and legal alternatives; captaincy receives the existing profile candidates; comparisons receive two resolved players; budget searches are filtered programmatically before explanation.
+
+Evidence labels identify the internal source of every answer: **ML Projection**, **Transfer Engine**, **Fixture Calendar**, **Signal Engine**, **Captaincy Engine**, **Chip Planner**, **Availability**, and **Squad State**. The expandable evidence panel is built from deterministic application context, never from provider prose. Confidence is also deterministic: missing financial legality or chip state, stale data, sparse minutes confidence, and missing required context reduce it from `HIGH` to `MODERATE` or `LOW`.
+
+Without a provider key, the page displays `AI provider: Disabled · Using deterministic analyst`. Primary transfer, captaincy, comparison, ranking, risk, fixture, DGW/BGW, chip, player, and weekly-brief questions still work. The optional provider uses a stateless OpenAI Responses API request with bounded output and no response storage. Provider timeout, rate-limit/error, malformed output, or failed grounding automatically discards provider prose and shows the deterministic answer.
+
+Grounding checks reject current players absent from supplied context, unsupported material xPts/price/gain/minutes numbers, false confirmed DGW/BGW claims, and false chip-state claims. The system prompt forbids pretrained live-football knowledge, fabricated data, optimizer overrides, guaranteed-points language, and unsupported certainty. Conversation history exists only in the current Streamlit session and is not stored externally.
+
+The analyst explains structured estimates; it does not browse news, speculate about fixtures, or mutate an FPL account. Its answers depend on data freshness. Ridge ceiling compression and heuristic expected minutes remain, and unknown bank, free transfers, selling prices, or private chip state restrict authoritative advice. Disabling the AI provider does not reduce the model, optimizer, or deterministic analyst functionality.
+
 ## Roadmap
 
 - Phase 1 — Current FPL data ingestion and baseline analytics
@@ -326,7 +348,8 @@ Chip signals are thresholded and visible as text: `GREEN` is a strong modeled op
 - Phase 5 — Personalized squad import
 - Phase 6 — Transfer / XI / captain optimizer
 - Phase 7 — Streamlit dashboard
-- Phase 8 — DGW/BGW, signals, and chip planner (current)
-- Phase 9 — AI analyst and automated evaluation (not started)
+- Phase 8 — DGW/BGW, signals, and chip planner
+- Phase 9 — grounded AI analyst and explainable decision layer (current)
+- Phase 10 — monitoring and automated evaluation (not started)
 
 Future transfer recommendations will compare multi-Gameweek expected gains after hit costs and legal FPL constraints. If no legal move clears the improvement threshold, the recommendation will explicitly be `ROLL TRANSFER`.

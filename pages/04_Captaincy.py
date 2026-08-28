@@ -3,7 +3,7 @@ import streamlit as st
 
 from fpl_predictor.captaincy import rank_captains
 from fpl_predictor.ui.charts import captaincy_scatter
-from fpl_predictor.ui.components import configure_page, render_data_status, render_sidebar
+from fpl_predictor.ui.components import configure_page, render_data_status, render_explain_button, render_sidebar
 
 configure_page("Captaincy")
 settings, bundle = render_sidebar()
@@ -40,3 +40,4 @@ else:
             "expected_minutes_proxy", "uncertainty_width", "minutes_confidence",
             "avg_fixture_difficulty", "overall_signal", "minutes_signal", "availability_signal"] if column in candidates]
     st.dataframe(candidates[show], width="stretch", hide_index=True)
+    render_explain_button("Who should I captain?", bundle, settings, "explain_captaincy")

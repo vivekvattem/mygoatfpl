@@ -189,3 +189,69 @@ def chip_card(label: str, signal: str, score: object, reason: str) -> None:
         st.markdown(f"**{label}: {signal_badge(signal)}**")
         st.metric("Score", "—" if score is None or pd.isna(score) else f"{float(score):.2f}")
         st.caption(reason)
+
+
+ANALYST_SUGGESTED_QUESTIONS = (
+    "What should I do this week?",
+    "Should I roll my transfer?",
+    "Who should I captain?",
+    "Who are my biggest risks?",
+    "Should I use a chip?",
+    "Which player should I replace first?",
+)
+
+
+def analyst_suggested_questions() -> tuple[str, ...]:
+    return ANALYST_SUGGESTED_QUESTIONS
+
+
+def analyst_provider_config() -> dict[str, str]:
+    """Read deployed Streamlit secrets safely; environment fallback lives in the provider."""
+    values = {}
+    try:
+        secrets = st.secrets
+        for key in ("FPL_ANALYST_PROVIDER", "FPL_ANALYST_API_KEY", "FPL_ANALYST_MODEL"):
+            if key in secrets:
+                values[key] = str(secrets[key])
+    except (FileNotFoundError, RuntimeError):
+        pass
+    return values
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def cached_analyst_context(question: str, bundle: DashboardBundle, settings: AppSettings,
+                           overrides: tuple[tuple[str, str], ...], refresh_generation: int = 0):
+    """Cache deterministic evidence selection, never provider-generated chat text."""
+    del refresh_generation
+    from fpl_predictor.analyst.context import build_analyst_context
+    return build_analyst_context(bundle, settings, question, dict(overrides))
+
+
+def analyst_evidence_text(sources) -> str:
+    from fpl_predictor.analyst.citations import evidence_badges
+    return " · ".join(evidence_badges(sources)) or "No structured evidence available"
+
+
+def render_analyst_result(response) -> None:
+    st.markdown(response.answer)
+    st.caption(f"Confidence: {response.confidence} · Provider: {response.provider} · "
+               f"{'Deterministic fallback' if response.fallback_used else 'Grounded AI explanation'}")
+    with st.expander("Evidence used", expanded=False):
+        st.write(analyst_evidence_text(response.evidence))
+        for label, value in response.evidence_details.items():
+            st.write(f"**{label}:** {value if value is not None else 'Unavailable'}")
+
+
+def render_explain_button(question: str, bundle: DashboardBundle, settings: AppSettings, key: str) -> None:
+    """Explain existing outputs without rerunning prediction or optimization."""
+    if st.button("Explain this recommendation", key=key):
+        from fpl_predictor.analyst.provider import provider_from_config
+        from fpl_predictor.analyst.service import AnalystService
+        overrides = {chip: st.session_state.get(f"chip_{chip}", "unknown") for chip in
+                     ("wildcard", "free_hit", "bench_boost", "triple_captain")}
+        context = cached_analyst_context(question, bundle, settings, tuple(overrides.items()),
+                                         st.session_state.get("refresh_generation", 0))
+        universe = set(bundle.predictions.player.astype(str)) if not bundle.predictions.empty else set()
+        response = AnalystService(provider_from_config(analyst_provider_config())).answer_context(
+            question, context, universe)
+        render_analyst_result(response)

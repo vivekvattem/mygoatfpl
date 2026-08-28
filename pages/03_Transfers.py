@@ -9,7 +9,7 @@ SRC_ROOT = Path(__file__).resolve().parents[1] / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from fpl_predictor.ui.components import configure_page, render_data_status, render_sidebar
+from fpl_predictor.ui.components import configure_page, render_data_status, render_explain_button, render_sidebar
 from fpl_predictor.ui.data import run_transfer_analysis, transfer_cache_key, transfer_readiness
 from fpl_predictor.ui.formatting import (
     decision_status_label, prepare_one_transfer_table, prepare_replacement_table,
@@ -86,6 +86,7 @@ st.caption(f"Configured transfer threshold: {settings.minimum_gain:.2f} xPts. "
            f"Risk profile: {settings.risk_profile.title()}.")
 if summary.get("transfer_note"):
     st.warning(summary["transfer_note"])
+render_explain_button("Should I roll my transfer?", bundle, settings, "explain_transfer")
 
 st.subheader("Best one-transfer moves")
 if bundle.one_transfers.empty:

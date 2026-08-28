@@ -2,7 +2,9 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from fpl_predictor.ui.components import configure_page, render_data_status, render_sidebar, require_predictions
+from fpl_predictor.ui.components import (
+    configure_page, render_data_status, render_explain_button, render_sidebar, require_predictions,
+)
 from fpl_predictor.ui.formatting import format_player_table
 
 configure_page("Player Comparison")
@@ -27,3 +29,4 @@ if require_predictions(bundle):
                "xGI_last_3", "ceiling_score", "risk_adjusted_utility"] if column in selected]
     chart = selected[["player", *metrics]].melt(id_vars="player", var_name="Metric", value_name="Value")
     st.plotly_chart(px.bar(chart, x="Metric", y="Value", color="player", barmode="group"), width="stretch")
+    render_explain_button(f"Compare {player_a} and {player_b}", bundle, settings, "explain_comparison")
