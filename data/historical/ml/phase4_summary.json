@@ -1,0 +1,138 @@
+{
+  "created_at": "2026-08-27T17:54:21.487818+00:00",
+  "selected_model": {
+    "model_name": "Ridge",
+    "trained_on_seasons": [
+      "2022-23",
+      "2023-24",
+      "2024-25"
+    ],
+    "feature_set": "feature_set_form",
+    "feature_names": [
+      "price",
+      "position",
+      "fixture_count",
+      "home_fixture_count",
+      "away_fixture_count",
+      "avg_fixture_difficulty",
+      "is_home",
+      "is_blank",
+      "points_last_1",
+      "points_last_3",
+      "points_last_5",
+      "xG_last_3",
+      "xA_last_3",
+      "xGI_last_3",
+      "xGI_last_5",
+      "points_per90_last_3",
+      "xGI_per90_last_3",
+      "bonus_last_3",
+      "bps_last_3",
+      "ict_index_last_3",
+      "minutes_last_1",
+      "minutes_last_3",
+      "minutes_last_5",
+      "avg_minutes_last_3",
+      "start_rate_last_3",
+      "start_rate_last_5",
+      "xGI_per90_last_3_missing",
+      "minutes_last_3_missing",
+      "expected_minutes_proxy",
+      "points_per_million_last_3",
+      "points_per_million_last_5",
+      "xGI_per_million_last_3",
+      "xGI_per_million_last_5"
+    ],
+    "selection_mode": "position_specific",
+    "validation_metrics": {
+      "mae": 1.7632901348541088,
+      "rmse": 2.6563048816480133,
+      "spearman": 0.49451221478919166,
+      "top_25_precision": 0.2410810810810811,
+      "ndcg_25": 0.4634714708333375,
+      "average_regret": 9.675675675675675
+    },
+    "global_model_path": "models/ridge_global.joblib",
+    "position_model_paths": {
+      "GK": "models/ridge_gk.joblib",
+      "DEF": "models/ridge_def.joblib",
+      "MID": "models/ridge_mid.joblib",
+      "FWD": "models/ridge_fwd.joblib"
+    },
+    "best_feature_set_by_model": {
+      "Ridge": "feature_set_form",
+      "Random Forest": "feature_set_form",
+      "HistGradientBoosting": "feature_set_full_linear"
+    },
+    "selection_weights": {
+      "mae": 0.3,
+      "spearman": 0.25,
+      "top_25_precision": 0.15,
+      "ndcg_25": 0.2,
+      "average_regret": 0.1
+    },
+    "test_season_used_for_selection": false
+  },
+  "test_metrics": {
+    "split": "test",
+    "model": "Ridge (position_specific)",
+    "mode": "position_specific",
+    "feature_set": "feature_set_form",
+    "mae": 1.9029834187295775,
+    "rmse": 2.786939076767792,
+    "spearman": 0.47591429253633677,
+    "mean_actual": 2.420285383725415,
+    "mean_predicted": 2.213361874983572,
+    "sample_count": 12965,
+    "top_10_precision": 0.15135135135135133,
+    "top_10_recall": 0.15135135135135133,
+    "top_25_precision": 0.20648648648648651,
+    "top_25_recall": 0.20648648648648651,
+    "top_50_precision": 0.29351351351351357,
+    "top_50_recall": 0.29351351351351357,
+    "ndcg_10": 0.383322811192265,
+    "ndcg_25": 0.41316201580203876,
+    "ndcg_50": 0.4503049611033267,
+    "ceiling_8_precision": 1.0,
+    "ceiling_8_recall": 0.0009746588693957114,
+    "ceiling_8_avg_prediction": 3.0670056375214183,
+    "ceiling_8_sample_count": 1026,
+    "ceiling_10_precision": NaN,
+    "ceiling_10_recall": 0.0,
+    "ceiling_10_avg_prediction": 3.173031221019249,
+    "ceiling_10_sample_count": 499,
+    "ceiling_15_precision": NaN,
+    "ceiling_15_recall": 0.0,
+    "ceiling_15_avg_prediction": 3.110227190991666,
+    "ceiling_15_sample_count": 84,
+    "average_top_pick_points": 6.135135135135135,
+    "average_actual_maximum": 17.10810810810811,
+    "average_regret": 10.972972972972974,
+    "gameweek_count": 37
+  },
+  "uncertainty": {
+    "method": "10th/90th OOF residual quantiles by position",
+    "bands": [
+      {
+        "position": "DEF",
+        "residual_lower": -2.16675007900022,
+        "residual_upper": 3.692828302891132
+      },
+      {
+        "position": "FWD",
+        "residual_lower": -2.4107683142826715,
+        "residual_upper": 4.943296311994304
+      },
+      {
+        "position": "GK",
+        "residual_lower": -2.4784239729057402,
+        "residual_upper": 3.62078603236865
+      },
+      {
+        "position": "MID",
+        "residual_lower": -2.1262343525762426,
+        "residual_upper": 3.438252418832675
+      }
+    ]
+  }
+}

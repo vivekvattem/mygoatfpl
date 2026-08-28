@@ -6,17 +6,17 @@ FPL AI Predictor is a data-driven Fantasy Premier League decision engine. Its lo
 
 ## Current Status
 
-**Phase 6 — Personalized Decision Optimizer**
+**Phase 7 — Streamlit Dashboard**
 
-Phases 1–5 remain intact. Phase 6 turns validated live projections and an explicit squad state into legal lineup, bench, captaincy, and transfer decisions. It does not execute transfers or implement a UI/LLM layer.
+Phases 1–6 remain intact. Phase 7 adds a cached, read-only Streamlit presentation layer over the validated live-inference and decision pipeline. It refreshes public FPL data only when requested, supports a manual pre-deadline squad or latest public post-deadline picks, and exposes rankings, optimized lineup/captaincy, transfer scenarios, fixtures, and model diagnostics. It never logs in to FPL or executes a transfer.
 
-The `attacking_score` is deliberately a simple, explainable baseline:
+The original Phase 1 `attacking_score` remains a simple, explainable baseline:
 
 ```text
 4.0 × xG/90 + 3.0 × xA/90 + 0.01 × threat/90 + 0.005 × creativity/90
 ```
 
-It is not an expected-points prediction model. No ML model, optimizer, squad import, UI, scheduling, or AI explanation layer is implemented in Phase 1.
+It is not the expected-points model used by the dashboard.
 
 ## Architecture
 
@@ -93,6 +93,23 @@ Run an explicitly labelled transfer scenario when bank/free transfers are known 
   --bank 0.0 --free-transfers 1 --horizon 5 --risk-profile balanced \
   --assume-selling-price-current
 ```
+
+## Local App
+
+```bash
+source .venv/bin/activate
+streamlit run app.py
+```
+
+The app opens with entry `8974446` explicitly labelled as a demo default. Select a squad source in the sidebar, preserve bank/free transfers as **Unknown** unless authoritative values are supplied, and click **Refresh FPL Data** when a new pipeline run is wanted. Widget changes and page navigation load cached outputs; they do not call the FPL API or rerun five-Gameweek optimization.
+
+Refresh performs one of three explicit workflows:
+
+- a valid manual squad runs the existing live-inference and Phase 6 optimizer CLI;
+- public-picks mode refreshes predictions and imports the latest public post-deadline snapshot for inspection, without treating it as a current pre-deadline squad;
+- a missing manual squad still refreshes the all-player rankings, while clearly reporting that personalization was skipped.
+
+If refresh fails, the last successful files remain visible and are marked **STALE DATA** when older than the configured TTL. Expected API, entry, squad, financial-state, artifact, and schema errors are shown as user-facing messages.
 
 ## Generated Data
 
@@ -185,7 +202,7 @@ Model/feature selection uses 2024/25 only. The weighted review score is document
 
 Expanding-window OOF predictions cover 2023/24, 2024/25, and 2025/26. Every row records its fold and latest training season, making future-row contamination auditable. Feature ablations remove fixtures, team strength, value, minutes, three-GW form, or five-GW form. A transparent expected-minutes proxy combines only lagged three/five-GW minutes, last-GW minutes, and lagged start rates.
 
-The selected production configuration is position-specific Ridge with `feature_set_form`. It won the validation multi-metric selection despite HistGradientBoosting having slightly lower validation MAE. Model binaries and metadata are stored under `models/` and ignored by Git.
+The selected production configuration is position-specific Ridge with `feature_set_form`. It won the validation multi-metric selection despite HistGradientBoosting having slightly lower validation MAE. The small frozen global and position-specific Ridge binaries and metadata under `models/` are intentionally committed for deterministic dashboard deployment; experimental/non-production artifacts remain ignored.
 
 Calibration is reported in fixed `<2`, `2–4`, `4–6`, `6–8`, and `8+` xPts bands. Uncertainty uses position-specific 10th/90th percentile residuals learned from pre-test OOF predictions; ranges are empirical diagnostics, not probabilistic guarantees. Residual reports segment errors by position, price, minutes history, venue, FDR, prediction band, Gameweek, and season stage.
 
@@ -239,6 +256,55 @@ The updater uses exact current-bootstrap identity resolution, preserves lineup/c
 
 Decision outputs are `optimized_xi.csv`, `transfer_candidates.csv`, `two_transfer_candidates.csv`, `replacement_shortlists.csv`, and `decision_summary.json` under `data/live/`. Experimental full-squad selection is available with `--full-squad-budget`; it is not labelled a Wildcard recommendation.
 
+## Phase 7 Dashboard
+
+The Streamlit layer lives in `app.py`, `pages/`, and `src/fpl_predictor/ui/`. UI modules load and format output artifacts, manage runtime-only settings, render shared status/pitch/download components, and provide Plotly charts. The live model, multi-Gameweek features, lineup/captaincy, transfer legality, decision thresholds, and squad updates continue to run through the established modules and CLI boundaries.
+
+The application pages are:
+
+- **Dashboard** — target-GW context, five KPIs, optimized pitch, bench, limitations, and downloads.
+- **My Squad** — sortable 15-player details plus explicit current/optimized role differences.
+- **Player Rankings** — position, team, price, availability, ownership, and minutes filters with next-GW/3-GW/5-GW/value/ceiling/risk sorting.
+- **Transfers** — roll/make decision, threshold reasoning, one- and two-transfer paths, hit costs, and replacement shortlists. These are inspection-only.
+- **Captaincy** — safe, balanced, and aggressive profiles plus xPts-versus-ceiling diagnostics.
+- **Fixtures** — numeric official FDR, model opponent strength, and best/worst three- and five-GW runs.
+- **Player Comparison** — a focused two-player form, minutes, fixture, utility, and ownership comparison.
+- **Model Performance** — stored Phase 4 frozen-test metrics, model comparisons, calibration, and segmented residual diagnostics.
+- **Settings** — runtime assumptions, TTL, JSON squad upload, and confirmed local/session manual-squad updates.
+
+Live file loading uses `st.cache_data` with a default 600-second TTL. Mutable settings and uploaded squads remain in `st.session_state`; the explicit Refresh button invalidates cached data only after the underlying CLI succeeds. Model files are loaded by the existing persisted-artifact code during inference rather than exposed for download. Available CSV/JSON decision reports can be downloaded from the dashboard.
+
+### Personal Squad Semantics
+
+Public FPL picks are a post-deadline/historical snapshot and may not represent current edits. A manual JSON squad is the authoritative local pre-deadline workflow. The Settings page validates uploaded files against the current bootstrap universe and requires explicit confirmation before calling the existing timestamped-backup squad updater. The app never replaces a manual squad with public picks automatically.
+
+Streamlit Community Cloud has an ephemeral filesystem. Uploaded squads and UI changes may disappear after an app restart; use the local CLI and version-controlled workflow for persistence. No database or private-account authentication is included.
+
+### Streamlit Community Cloud Deployment
+
+Configure Community Cloud with:
+
+```text
+Repository: vivekvattem/mygoatfpl
+Branch:     main
+Main file:  app.py
+```
+
+Push the repository including `app.py`, `pages/`, `.streamlit/config.toml`, package source, the small production `models/ridge_*` artifacts, and compact Phase 4 report files. No secrets are required for the official public FPL endpoints. Future secrets belong in the Cloud console or an uncommitted `.streamlit/secrets.toml`.
+
+All runtime paths derive from the repository root. Large historical datasets, current API snapshots, and generated live CSV/JSON files remain excluded from Git; the dashboard can recreate live outputs through Refresh.
+
+### Current Dashboard Limitations
+
+- Public FPL picks do not reveal reliable current pre-deadline edits.
+- Current-season early-Gameweek form is sparse and falls back to training-time model imputation.
+- Ridge xPts compresses rare high-ceiling outcomes; captaincy therefore adds a transparent ceiling/minutes heuristic.
+- Expected minutes are a historical proxy, not a dedicated minutes model.
+- Future-GW projections hold current form, availability, and minutes assumptions fixed while changing known fixtures.
+- Unknown selling prices block strict transfer analysis; explicit current-price substitution is labelled **SCENARIO MODE**.
+- Cloud-local squad uploads and edits are session/runtime conveniences, not durable storage.
+- The app is decision support, not an automated transfer, chip, or account-management system.
+
 ## Roadmap
 
 - Phase 1 — Current FPL data ingestion and baseline analytics
@@ -247,7 +313,7 @@ Decision outputs are `optimized_xi.csv`, `transfer_candidates.csv`, `two_transfe
 - Phase 4 — Expected-points ML model
 - Phase 5 — Personalized squad import
 - Phase 6 — Transfer / XI / captain optimizer
-- Phase 7 — Streamlit dashboard
+- Phase 7 — Streamlit dashboard (current)
 - Phase 8 — AI analyst
 - Phase 9 — Automated weekly evaluation and model monitoring
 

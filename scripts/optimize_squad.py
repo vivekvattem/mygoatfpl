@@ -42,6 +42,7 @@ def run(args: argparse.Namespace) -> dict:
         multi.drop(columns=[column for column in identity if column in multi]), on="player_id", validate="one_to_one"
     )
     universe = add_player_utilities(universe, args.horizon, args.risk_lambda)
+    universe.to_csv(LIVE_DATA_DIR / "player_decision_universe.csv", index=False)
     squad = attach_squad_projections(state, universe)
     lineup = optimize_starting_xi(squad, f"weighted_xpts_{args.horizon}")
     captaincy = rank_captains(lineup.starting_11, args.risk_profile)
@@ -72,7 +73,8 @@ def run(args: argparse.Namespace) -> dict:
     best_one = None if one is None or one.empty else one.iloc[0].to_dict()
     best_two = None if two is None or two.empty else two.iloc[0].to_dict()
     summary = {"entry_id": args.entry_id, "target_gw": target_gw, "horizon": args.horizon,
-               "risk_profile": args.risk_profile, "squad_source": state.squad_source,
+               "risk_profile": args.risk_profile, "minimum_gain": args.minimum_gain,
+               "squad_source": state.squad_source,
                "bank": state.bank, "free_transfers": state.free_transfers,
                "financial_state_scenario": bool(args.assume_selling_price_current),
                "current_squad_xpts": float(squad.availability_adjusted_xpts.sum()),
