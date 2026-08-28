@@ -14,6 +14,10 @@ if bundle.optimized_xi.empty:
     st.warning("Run the optimizer to generate captain candidates.")
 else:
     xi = bundle.optimized_xi.copy()
+    required = {"availability_adjusted_xpts", "ceiling_score", "expected_minutes_proxy"}
+    if not required.issubset(xi):
+        st.warning("Captaincy inputs are incomplete for this session squad. Refresh personalized outputs when ready.")
+        st.stop()
     if "overall_signal" in bundle.predictions:
         signal_columns = [column for column in ["player_id", "overall_signal", "minutes_signal", "availability_signal"]
                           if column in bundle.predictions]

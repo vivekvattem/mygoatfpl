@@ -10,6 +10,7 @@ from fpl_predictor.ui.data import (
 )
 from fpl_predictor.ui.state import AppSettings
 from fpl_predictor.ui.charts import projection_scatter
+from fpl_predictor.ui.components import risk_summary
 
 
 def _bundle():
@@ -129,3 +130,5 @@ def test_uploaded_squad_rebuilds_runtime_xi_without_live_refresh(monkeypatch, tm
     assert bundle.decision_summary["runtime_personalization"]
     assert bundle.decision_summary["captain"]
     assert bundle.one_transfers.empty and bundle.two_transfers.empty
+    session_shape_without_5gw = bundle.squad.drop(columns=["weighted_xpts_5"])
+    assert not risk_summary(session_shape_without_5gw).empty

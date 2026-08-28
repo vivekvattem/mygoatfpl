@@ -1,7 +1,8 @@
 import pandas as pd
 
 from fpl_predictor.ui.components import (
-    action_badge, analyst_evidence_text, analyst_suggested_questions, risk_summary, signal_badge,
+    action_badge, analyst_evidence_text, analyst_suggested_questions, first_existing_column, risk_summary,
+    signal_badge,
 )
 from fpl_predictor.analyst.citations import freshness_label
 
@@ -67,3 +68,19 @@ def test_analyst_evidence_badges_and_suggestions_are_accessible_text():
     suggestions = analyst_suggested_questions()
     assert "What should I do this week?" in suggestions and len(suggestions) >= 6
     assert freshness_label(True) == "STALE DATA" and freshness_label(False) == "LIVE DATA"
+
+
+def test_risk_summary_uses_weighted_projection_when_present():
+    players = pd.DataFrame({"player": ["A", "B"], "overall_signal": ["RED", "RED"],
+                            "weighted_xpts_5": [5.0, 2.0]})
+    assert risk_summary(players).player.tolist() == ["B", "A"]
+    assert first_existing_column(players, ("missing", "weighted_xpts_5")) == "weighted_xpts_5"
+
+
+def test_risk_summary_falls_back_to_xpts_then_signal_only_without_crashing():
+    xpts_only = pd.DataFrame({"player": ["A", "B"], "overall_signal": ["YELLOW", "YELLOW"],
+                              "xpts": [4.0, 1.0]})
+    assert risk_summary(xpts_only).player.tolist() == ["B", "A"]
+    no_projection = pd.DataFrame({"player": ["Green", "Risk"], "overall_signal": ["GREEN", "RED"]})
+    assert risk_summary(no_projection).player.tolist() == ["Risk", "Green"]
+    assert risk_summary(pd.DataFrame()).empty

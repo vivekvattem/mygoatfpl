@@ -33,7 +33,9 @@ if require_predictions(bundle):
         with left:
             st.subheader("Current XI")
             current = squad[pd.to_numeric(squad.get("multiplier", 0), errors="coerce").fillna(0).gt(0)]
-            st.dataframe(current[["player", "position", "team", "availability_adjusted_xpts"]], width="stretch", hide_index=True)
+            current_columns = [column for column in ["player", "position", "team", "availability_adjusted_xpts"]
+                               if column in current]
+            st.dataframe(current[current_columns], width="stretch", hide_index=True)
         with right:
             st.subheader("Optimized XI")
             columns = [column for column in ["player", "position", "team", "availability_adjusted_xpts"] if column in bundle.optimized_xi]

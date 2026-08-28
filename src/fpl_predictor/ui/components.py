@@ -117,8 +117,8 @@ def render_pitch(xi: pd.DataFrame, captain: str | None, vice: str | None) -> Non
             availability = getattr(row, "availability", "unknown")
             with column.container(border=True):
                 st.markdown(f"**{row.player}{marker}**")
-                st.caption(f"{row.team} · {money(row.price)}")
-                st.write(f"{points(row.availability_adjusted_xpts)} xPts")
+                st.caption(f"{getattr(row, 'team', 'Unknown')} · {money(getattr(row, 'price', None))}")
+                st.write(f"{points(getattr(row, 'availability_adjusted_xpts', None))} xPts")
                 st.caption(str(availability).title())
 
 
@@ -168,11 +168,21 @@ def action_badge(action: str) -> str:
     return signal_badge(signal, action)
 
 
+def first_existing_column(frame: pd.DataFrame, candidates: list[str] | tuple[str, ...]) -> str | None:
+    """Return the first real column without inventing a missing projection."""
+    return next((column for column in candidates if column in frame.columns), None)
+
+
 def risk_summary(players: pd.DataFrame, limit: int = 3) -> pd.DataFrame:
     if players.empty or "overall_signal" not in players:
         return pd.DataFrame()
     order = pd.Categorical(players.overall_signal, categories=["RED", "YELLOW", "GREY", "GREEN"], ordered=True)
-    result = players.assign(_order=order).sort_values(["_order", "weighted_xpts_5"], ascending=[True, True])
+    projection = first_existing_column(players, (
+        "weighted_xpts_5", "xpts_5gw", "five_gw_xpts", "adjusted_xpts", "raw_xpts", "xpts",
+    ))
+    result = players.assign(_order=order)
+    result = (result.sort_values(["_order", projection], ascending=[True, True]) if projection is not None
+              else result.sort_values("_order"))
     columns = [column for column in ["player", "overall_signal", "action", "risk_reason"] if column in result]
     return result.head(limit)[columns]
 

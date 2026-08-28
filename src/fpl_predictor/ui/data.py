@@ -282,7 +282,7 @@ def load_dashboard_bundle(settings: AppSettings) -> DashboardBundle:
                 "runtime_personalization": True,
             }
             one_transfers = pd.DataFrame(); two_transfers = pd.DataFrame(); replacements = pd.DataFrame()
-        except (ValueError, RuntimeError):
+        except (KeyError, TypeError, ValueError, RuntimeError):
             pass
     phase4 = _json(HISTORICAL_ML_DIR / "phase4_summary.json")
     status_path = LIVE_DATA_DIR / ("decision_summary.json" if decision and not decision.get("runtime_personalization")

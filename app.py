@@ -3,6 +3,7 @@
 from pathlib import Path
 import sys
 
+import pandas as pd
 import streamlit as st
 
 # Streamlit Community Cloud runs from the repository root; adding the local
@@ -12,8 +13,8 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from fpl_predictor.ui.components import (
-    cached_analyst_context, configure_page, render_analyst_result, render_data_status, render_downloads, render_kpis,
-    render_pitch, render_sidebar, require_predictions, risk_summary, signal_badge,
+    cached_analyst_context, configure_page, first_existing_column, render_analyst_result, render_data_status,
+    render_downloads, render_kpis, render_pitch, render_sidebar, require_predictions, risk_summary, signal_badge,
 )
 from fpl_predictor.ui.data import dashboard_summary
 from fpl_predictor.analyst.deterministic import deterministic_answer
@@ -46,11 +47,20 @@ if require_predictions(bundle):
         with risks:
             st.markdown("**Top 3 risks**")
             st.dataframe(risk_summary(bundle.squad), width="stretch", hide_index=True)
+            if "weighted_xpts_5" not in bundle.squad:
+                st.caption("5-GW projection unavailable; risks are ordered by signal and the best available projection.")
         with opportunities:
             st.markdown("**Top 3 opportunities**")
-            options = bundle.predictions[(~bundle.predictions.owned.fillna(False)) & bundle.predictions.overall_signal.eq("GREEN")]
+            owned = (bundle.predictions["owned"].fillna(False) if "owned" in bundle.predictions
+                     else pd.Series(False, index=bundle.predictions.index))
+            green = (bundle.predictions["overall_signal"].eq("GREEN") if "overall_signal" in bundle.predictions
+                     else pd.Series(False, index=bundle.predictions.index))
+            options = bundle.predictions[(~owned) & green]
             columns = [column for column in ["player", "team", "overall_signal", "action", "signal_reason"] if column in options]
-            st.dataframe(options.nlargest(3, "weighted_xpts_5")[columns], width="stretch", hide_index=True)
+            projection = first_existing_column(options, ("weighted_xpts_5", "xpts_5gw", "five_gw_xpts",
+                                                         "adjusted_xpts", "raw_xpts", "xpts"))
+            shown = options.nlargest(3, projection) if projection else options.head(3)
+            st.dataframe(shown[columns], width="stretch", hide_index=True)
     st.subheader("Upcoming Alerts")
     if bundle.fixture_calendar.empty:
         st.info("Confirmed fixture alerts are unavailable until fixture data is refreshed.")
