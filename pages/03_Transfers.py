@@ -77,6 +77,11 @@ metric_columns[1].metric("Best Move", f"{best.get('out', '—')} → {best.get('
 metric_columns[2].metric("Expected Gain", "—" if best_gain is None else f"{best_gain:+.2f}")
 metric_columns[3].metric("Hit Cost", "—" if not best else f"{best.get('hit_cost', 0):.0f}")
 metric_columns[4].metric("Planning Horizon", f"{settings.horizon} GW")
+if best and "overall_signal" in bundle.predictions:
+    player_signals = bundle.predictions.set_index("player_id")["overall_signal"].to_dict()
+    st.write(f"OUT player signal: **{player_signals.get(best.get('out_id'), 'GREY')}** · "
+             f"IN player signal: **{player_signals.get(best.get('in_id'), 'GREY')}** · "
+             f"Transfer signal: **{'GREEN' if best_gain is not None and best_gain >= settings.minimum_gain else 'YELLOW' if best_gain and best_gain > 0 else 'RED'}**")
 st.caption(f"Configured transfer threshold: {settings.minimum_gain:.2f} xPts. "
            f"Risk profile: {settings.risk_profile.title()}.")
 if summary.get("transfer_note"):

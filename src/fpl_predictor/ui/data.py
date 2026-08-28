@@ -1,6 +1,6 @@
 """Read-only dashboard data access and explicit pipeline refresh boundary."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -13,9 +13,11 @@ import pandas as pd
 
 from fpl_predictor.config import HISTORICAL_ML_DIR, LIVE_DATA_DIR, PROJECT_ROOT, RAW_DATA_DIR
 from fpl_predictor.fixtures import get_next_gameweek, normalize_fixtures
+from fpl_predictor.fixture_calendar import build_fixture_calendar, team_fixture_signals
 from fpl_predictor.live_features import current_season_label
 from fpl_predictor.loaders import load_events
 from fpl_predictor.team_strength import build_team_match_rows, calculate_team_strength
+from fpl_predictor.signals import add_player_signals
 from fpl_predictor.ui.state import AppSettings, project_relative_path, validate_settings
 
 
@@ -43,6 +45,8 @@ class DashboardBundle:
     live_summary: dict[str, Any]
     phase4_summary: dict[str, Any]
     status: DataStatus
+    fixture_calendar: pd.DataFrame = field(default_factory=pd.DataFrame)
+    team_fixture_signals: pd.DataFrame = field(default_factory=pd.DataFrame)
 
 
 @dataclass(frozen=True)
@@ -122,6 +126,19 @@ def load_fixture_table() -> pd.DataFrame:
     return frame
 
 
+def load_confirmed_fixture_calendar(target_gw: int | None, horizon: int = 10) -> pd.DataFrame:
+    fixture_path, bootstrap_path = RAW_DATA_DIR / "fixtures.json", RAW_DATA_DIR / "bootstrap_static.json"
+    if target_gw is None or not fixture_path.exists() or not bootstrap_path.exists():
+        return pd.DataFrame()
+    try:
+        fixtures = json.loads(fixture_path.read_text(encoding="utf-8"))
+        bootstrap = json.loads(bootstrap_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return pd.DataFrame()
+    teams = pd.DataFrame(bootstrap.get("teams", []))
+    return build_fixture_calendar(fixtures, teams, int(target_gw), horizon) if not teams.empty else pd.DataFrame()
+
+
 def load_manual_squad_view(path: str | Path, predictions: pd.DataFrame) -> pd.DataFrame:
     source = project_relative_path(path)
     payload = _json(source)
@@ -193,13 +210,13 @@ def run_transfer_analysis(settings: AppSettings, timeout: int = 300) -> RefreshR
 
 def load_dashboard_bundle(settings: AppSettings) -> DashboardBundle:
     validate_settings(settings)
+    live = _json(LIVE_DATA_DIR / "live_summary.json")
     predictions = _csv(LIVE_DATA_DIR / "player_decision_universe.csv")
     if predictions.empty:
         predictions = _csv(LIVE_DATA_DIR / "player_predictions.csv")
     squad = (load_manual_squad_view(settings.squad_file, predictions)
              if settings.squad_source == "manual_file" else _csv(LIVE_DATA_DIR / "my_squad.csv"))
     decision = _json(LIVE_DATA_DIR / "decision_summary.json")
-    live = _json(LIVE_DATA_DIR / "live_summary.json")
     # A decision report belongs to one entry/source. Never present an older
     # manual optimization as though it came from a newly selected public squad.
     squad_path = project_relative_path(settings.squad_file)
@@ -221,13 +238,30 @@ def load_dashboard_bundle(settings: AppSettings) -> DashboardBundle:
         decision = {}
     if settings.squad_source == "public_api" and live.get("squad_source") != "public_api":
         squad = pd.DataFrame()
+    one_transfers = _csv(LIVE_DATA_DIR / "transfer_candidates.csv")
+    calendar = load_confirmed_fixture_calendar(live.get("target_gw"), 10)
+    fixture_signals = (team_fixture_signals(calendar, int(live["target_gw"]), 5)
+                       if not calendar.empty and live.get("target_gw") is not None else pd.DataFrame())
+    worthwhile_ids: list[int] = []
+    net_column = f"net_gain_{settings.horizon}gw"
+    if decision and net_column in one_transfers:
+        worthwhile_ids = one_transfers.loc[one_transfers[net_column].ge(settings.minimum_gain), "out_id"].tolist()
+    if not predictions.empty and not squad.empty:
+        predictions["owned"] = predictions.player_id.isin(squad.player_id)
+    predictions = add_player_signals(predictions, fixture_signals, worthwhile_ids) if not predictions.empty else predictions
+    if not squad.empty and not predictions.empty:
+        signal_columns = [column for column in predictions if column.endswith("_signal") or column in
+                          {"player_id", "action", "signal_reason", "risk_reason", "fixture_reason",
+                           "fixtures_next_5", "average_fdr_5"}]
+        existing = [column for column in signal_columns if column != "player_id" and column in squad]
+        squad = squad.drop(columns=existing).merge(predictions[signal_columns], on="player_id", how="left")
     phase4 = _json(HISTORICAL_ML_DIR / "phase4_summary.json")
     status_path = LIVE_DATA_DIR / ("decision_summary.json" if decision else "live_summary.json")
     return DashboardBundle(
         predictions=predictions,
         squad=squad,
         optimized_xi=_csv(LIVE_DATA_DIR / "optimized_xi.csv"),
-        one_transfers=_csv(LIVE_DATA_DIR / "transfer_candidates.csv"),
+        one_transfers=one_transfers,
         two_transfers=_csv(LIVE_DATA_DIR / "two_transfer_candidates.csv"),
         replacements=_csv(LIVE_DATA_DIR / "replacement_shortlists.csv"),
         fixtures=load_fixture_table(),
@@ -238,6 +272,8 @@ def load_dashboard_bundle(settings: AppSettings) -> DashboardBundle:
         live_summary=live,
         phase4_summary=phase4,
         status=data_status(status_path, settings.refresh_ttl),
+        fixture_calendar=calendar,
+        team_fixture_signals=fixture_signals,
     )
 
 

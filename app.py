@@ -13,7 +13,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from fpl_predictor.ui.components import (
     configure_page, render_data_status, render_downloads, render_kpis,
-    render_pitch, render_sidebar, require_predictions,
+    render_pitch, render_sidebar, require_predictions, risk_summary, signal_badge,
 )
 from fpl_predictor.ui.data import dashboard_summary
 
@@ -32,6 +32,32 @@ render_data_status(bundle)
 
 if require_predictions(bundle):
     render_kpis(bundle)
+    st.subheader("Squad signals")
+    if not bundle.squad.empty and "overall_signal" in bundle.squad:
+        counts = bundle.squad.overall_signal.value_counts()
+        signal_columns = st.columns(4)
+        for column, signal in zip(signal_columns, ("GREEN", "YELLOW", "RED", "GREY")):
+            column.metric(signal_badge(signal), int(counts.get(signal, 0)))
+        risks, opportunities = st.columns(2)
+        with risks:
+            st.markdown("**Top 3 risks**")
+            st.dataframe(risk_summary(bundle.squad), width="stretch", hide_index=True)
+        with opportunities:
+            st.markdown("**Top 3 opportunities**")
+            options = bundle.predictions[(~bundle.predictions.owned.fillna(False)) & bundle.predictions.overall_signal.eq("GREEN")]
+            columns = [column for column in ["player", "team", "overall_signal", "action", "signal_reason"] if column in options]
+            st.dataframe(options.nlargest(3, "weighted_xpts_5")[columns], width="stretch", hide_index=True)
+    st.subheader("Upcoming Alerts")
+    if bundle.fixture_calendar.empty:
+        st.info("Confirmed fixture alerts are unavailable until fixture data is refreshed.")
+    else:
+        alerts = bundle.fixture_calendar[bundle.fixture_calendar.schedule_label.ne("NORMAL")]
+        if alerts.empty:
+            st.success("No confirmed DGW/BGW/TGW alerts in the next 10 Gameweeks.")
+        else:
+            for (gw, label), group in alerts.groupby(["gw", "schedule_label"]):
+                icon = "🔴" if label == "BGW" else "🟡" if label == "TGW" else "🟢"
+                st.write(f"{icon} **GW{gw} {label} — CONFIRMED:** {', '.join(group.team.tolist())}")
     st.divider()
     st.subheader("Projected starting XI")
     render_pitch(bundle.optimized_xi, summary["captain"], summary["vice_captain"])

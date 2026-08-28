@@ -13,10 +13,15 @@ st.info("Captaincy uses xPts plus a separate ceiling/minutes heuristic. It is no
 if bundle.optimized_xi.empty:
     st.warning("Run the optimizer to generate captain candidates.")
 else:
+    xi = bundle.optimized_xi.copy()
+    if "overall_signal" in bundle.predictions:
+        signal_columns = [column for column in ["player_id", "overall_signal", "minutes_signal", "availability_signal"]
+                          if column in bundle.predictions]
+        xi = xi.merge(bundle.predictions[signal_columns], on="player_id", how="left")
     columns = st.columns(3)
     all_candidates = []
     for column, profile in zip(columns, ("safe", "balanced", "aggressive")):
-        result = rank_captains(bundle.optimized_xi, profile)
+        result = rank_captains(xi, profile)
         all_candidates.append(result.candidates.assign(profile=profile))
         with column.container(border=True):
             st.subheader(profile.title())
@@ -26,9 +31,12 @@ else:
             st.caption(f"xPts {result.captain.availability_adjusted_xpts:.2f} · Ceiling {result.captain.ceiling_score:.1f} · Minutes {result.captain.expected_minutes_proxy:.0f}")
             if "avg_fixture_difficulty" in result.captain.index:
                 st.caption(f"Fixture FDR: {result.captain.avg_fixture_difficulty:.1f}")
+            st.caption(f"Captain risk: {result.captain.get('overall_signal', 'GREY')} · "
+                       f"Minutes {result.captain.get('minutes_signal', 'GREY')} · "
+                       f"Availability {result.captain.get('availability_signal', 'GREY')}")
     candidates = pd.concat(all_candidates).drop_duplicates("player_id")
     st.plotly_chart(captaincy_scatter(candidates), width="stretch")
     show = [column for column in ["player", "team", "position", "availability_adjusted_xpts", "ceiling_score",
             "expected_minutes_proxy", "uncertainty_width", "minutes_confidence",
-            "avg_fixture_difficulty"] if column in candidates]
+            "avg_fixture_difficulty", "overall_signal", "minutes_signal", "availability_signal"] if column in candidates]
     st.dataframe(candidates[show], width="stretch", hide_index=True)

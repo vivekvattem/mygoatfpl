@@ -61,4 +61,8 @@ SESSION_DEFAULTS = {
     "minimum_gain": 1.5,
     "assume_selling_price_current": False,
     "refresh_ttl": 600,
+    "chip_wildcard": "unknown",
+    "chip_free_hit": "unknown",
+    "chip_bench_boost": "unknown",
+    "chip_triple_captain": "unknown",
 }

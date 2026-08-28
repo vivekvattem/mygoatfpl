@@ -19,6 +19,14 @@ st.caption("Scenario Mode is controlled from the shared sidebar: Assume current 
 if st.session_state.assume_selling_price_current:
     st.warning("SCENARIO MODE will be clearly marked on transfer outputs.")
 
+st.subheader("Chip availability")
+st.caption("Public pre-deadline chip availability is not assumed. Choose a manual state only when known.")
+chip_columns = st.columns(2)
+for index, (key, label) in enumerate((("chip_wildcard", "Wildcard"), ("chip_free_hit", "Free Hit"),
+                                      ("chip_bench_boost", "Bench Boost"),
+                                      ("chip_triple_captain", "Triple Captain"))):
+    chip_columns[index % 2].selectbox(label, ["unknown", "available", "used"], key=key)
+
 st.subheader("Manual squad upload")
 uploaded = st.file_uploader("Upload manual_squad.json", type="json")
 if uploaded is not None and st.button("Use uploaded squad for this session"):

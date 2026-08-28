@@ -26,6 +26,7 @@ if require_predictions(bundle):
         columns = [column for column in ["player", "team", "position", "price", "raw_xpts",
                    "availability_adjusted_xpts", "weighted_xpts_3", "weighted_xpts_5",
                    "expected_minutes_proxy", "availability", "selected_by_percent",
+                   "overall_signal", "action", "risk_reason",
                    "Captain", "Vice", "bench_position", "Current role", "Optimized role", "Changed"] if column in squad]
         st.dataframe(format_player_table(squad[columns]), width="stretch", hide_index=True)
         left, right = st.columns(2)

@@ -19,12 +19,14 @@ if require_predictions(bundle):
     price_min, price_max = float(players.price.min()), float(players.price.max())
     selected_price = st.slider("Price range", price_min, price_max, (price_min, price_max), 0.1)
     availability = st.multiselect("Availability", sorted(players.availability.dropna().unique()) if "availability" in players else [])
+    signal_filter = st.multiselect("Signal", ["GREEN", "YELLOW", "RED", "GREY"], default=[])
     min_minutes = st.slider("Minimum expected minutes", 0, 90, 0, 5)
     if positions: players = players[players.position.isin(positions)]
     if teams: players = players[players.team.isin(teams)]
     if ownership_filter != "All" and "owned" in players:
         players = players[players.owned.eq(ownership_filter == "Owned")]
     if availability and "availability" in players: players = players[players.availability.isin(availability)]
+    if signal_filter and "overall_signal" in players: players = players[players.overall_signal.isin(signal_filter)]
     players = players[players.price.between(*selected_price)]
     if "expected_minutes_proxy" in players:
         players = players[pd.to_numeric(players.expected_minutes_proxy, errors="coerce").fillna(0).ge(min_minutes)]
@@ -39,7 +41,13 @@ if require_predictions(bundle):
     columns = [column for column in ["player", "team", "position", "price", "availability_adjusted_xpts",
                "weighted_xpts_3", "weighted_xpts_5", "expected_minutes_proxy", "ceiling_score",
                "uncertainty_width", "selected_by_percent", "availability"] if column in ranked]
+    columns += [column for column in ["overall_signal", "action"] if column in ranked and column not in columns]
     st.dataframe(format_player_table(ranked[columns]), width="stretch", hide_index=True)
+    signal_columns = [column for column in ["player_id", "player", "team", "position", "overall_signal", "action",
+                      "availability_signal", "minutes_signal", "fixture_signal", "form_signal", "value_signal",
+                      "signal_reason", "risk_reason"] if column in players]
+    st.download_button("Download player_signals.csv", players[signal_columns].to_csv(index=False),
+                       file_name="player_signals.csv", mime="text/csv")
     if {"weighted_xpts_3", "weighted_xpts_5", "expected_minutes_proxy"}.issubset(players):
         st.subheader("3-GW vs 5-GW outlook")
         st.plotly_chart(projection_scatter(players), width="stretch")

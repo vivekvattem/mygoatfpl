@@ -65,6 +65,7 @@ def run(entry_id: int, squad_file: str | Path | None = None) -> int:
         print(f"Entry import unavailable for {entry_id}: {exc}", file=sys.stderr)
         return 1
     summary = dict(live["summary"])
+    summary["entry_history_chips"] = history.get("chips", []) if isinstance(history, dict) else []
     players = load_players(live["bootstrap"])
     source, gameweek, kind = "unavailable", None, None
     bank, free_transfers = None, None

@@ -6,9 +6,9 @@ FPL AI Predictor is a data-driven Fantasy Premier League decision engine. Its lo
 
 ## Current Status
 
-**Phase 7 — Streamlit Dashboard**
+**Phase 8 — DGW/BGW + Signals + Chip Planner**
 
-Phases 1–6 remain intact. Phase 7 adds a cached, read-only Streamlit presentation layer over the validated live-inference and decision pipeline. It refreshes public FPL data only when requested, supports a manual pre-deadline squad or latest public post-deadline picks, and exposes rankings, optimized lineup/captaincy, transfer scenarios, fixtures, and model diagnostics. It never logs in to FPL or executes a transfer.
+Phases 1–7 remain intact. Phase 8 adds a confirmed official fixture calendar, explainable player/team traffic-light signals, and a read-only Wildcard/Free Hit/Bench Boost/Triple Captain planner. All major results render directly in Streamlit. The app never logs in to FPL, executes transfers, or activates chips.
 
 The original Phase 1 `attacking_score` remains a simple, explainable baseline:
 
@@ -305,6 +305,18 @@ All runtime paths derive from the repository root. Large historical datasets, cu
 - Cloud-local squad uploads and edits are session/runtime conveniences, not durable storage.
 - The app is decision support, not an automated transfer, chip, or account-management system.
 
+## Phase 8 Strategic Planning
+
+The fixture calendar expands the official FPL `fixtures/` response into a complete team × Gameweek grid for the next 10 Gameweeks. Zero scheduled fixtures are explicit BGWs, two are DGWs, and three or more are TGW/congestion rows. Opponents, venue, official FDR, kickoff time, and fixture IDs are retained. Only fixtures present in the official API are labelled **CONFIRMED**; rumours and tentative rearrangements are excluded.
+
+Player signals are deterministic. Availability uses official status/chance, minutes uses the expected-minutes proxy (`GREEN ≥75`, `YELLOW 45–74 or low confidence`, `RED <45`), form and value are position-relative tertiles, and fixtures use numeric five-Gameweek FDR/counts. Overall signal weights are availability 25%, minutes 20%, fixtures 20%, form 15%, value 10%, and five-Gameweek outlook 10%; an official red availability state is a hard red override. Every signal includes structured reasons.
+
+Actions are conservative: unowned green players are `BUY`; owned green players are `HOLD`; yellow players are `WATCH`; an owned red player is `SELL` only when the legal transfer analysis also clears the configured gain threshold, otherwise it is `WATCH / HOLD`.
+
+The chip planner is advisory and shows at least eight upcoming Gameweeks. Chip state is `available`, `used`, or `unknown`; official history can prove usage, while availability remains unknown unless manually supplied in Settings. Wildcard compares a budget-legal rebuilt squad when bank is known. Free Hit combines confirmed active-player count with a budget-legal one-GW XI gain. Bench Boost uses bench xPts, minutes, availability, and all-15 fixture exposure. Triple Captain combines captain xPts with the existing ceiling/minutes heuristic and confirmed fixture count; Ridge xPts alone never determines it.
+
+Chip signals are thresholded and visible as text: `GREEN` is a strong modeled opportunity, `YELLOW` is plausible but not exceptional, `RED` is poor timing, and `GREY` means used/unknown/insufficient data. Future fixtures may be rescheduled after refresh, expected minutes remain heuristic, high-ceiling compression remains, and projections beyond GW+5 lack player-level model output. There are no bookmaker odds, no private login, no automatic chip execution, and no private pre-deadline chip state unless supplied.
+
 ## Roadmap
 
 - Phase 1 — Current FPL data ingestion and baseline analytics
@@ -313,8 +325,8 @@ All runtime paths derive from the repository root. Large historical datasets, cu
 - Phase 4 — Expected-points ML model
 - Phase 5 — Personalized squad import
 - Phase 6 — Transfer / XI / captain optimizer
-- Phase 7 — Streamlit dashboard (current)
-- Phase 8 — AI analyst
-- Phase 9 — Automated weekly evaluation and model monitoring
+- Phase 7 — Streamlit dashboard
+- Phase 8 — DGW/BGW, signals, and chip planner (current)
+- Phase 9 — AI analyst and automated evaluation (not started)
 
 Future transfer recommendations will compare multi-Gameweek expected gains after hit costs and legal FPL constraints. If no legal move clears the improvement threshold, the recommendation will explicitly be `ROLL TRANSFER`.

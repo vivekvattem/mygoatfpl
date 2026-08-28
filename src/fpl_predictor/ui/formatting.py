@@ -29,7 +29,9 @@ def format_player_table(frame: pd.DataFrame) -> pd.DataFrame:
               "availability_adjusted_xpts": "xPts", "weighted_xpts_3": "3GW",
               "weighted_xpts_5": "5GW", "expected_minutes_proxy": "Minutes",
               "ceiling_score": "Ceiling", "uncertainty_width": "Uncertainty",
-              "selected_by_percent": "Ownership", "availability": "Availability"}
+              "selected_by_percent": "Ownership", "availability": "Availability",
+              "overall_signal": "Overall Signal", "action": "Action", "risk_reason": "Risk Reason",
+              "signal_reason": "Why"}
     result = result.rename(columns=rename)
     for column in ("Price", "xPts", "3GW", "5GW", "Minutes", "Ceiling", "Uncertainty", "Ownership"):
         if column in result:
@@ -99,12 +101,13 @@ def prepare_replacement_table(frame: pd.DataFrame, predictions: pd.DataFrame,
                               horizon: int, threshold: float) -> pd.DataFrame:
     """Attach existing live-projection context to Phase 6 replacement paths."""
     incoming_columns = [column for column in ["player_id", "team", "price", "availability_adjusted_xpts",
-                        "weighted_xpts_3", "weighted_xpts_5", "availability"] if column in predictions]
+                        "weighted_xpts_3", "weighted_xpts_5", "availability", "overall_signal", "action"]
+                        if column in predictions]
     incoming = predictions[incoming_columns].rename(columns={"player_id": "in_id"})
     result = frame.merge(incoming, on="in_id", how="left") if "in_id" in frame else frame.copy()
     net_column = f"net_gain_{horizon}gw"
     columns = ["in", "team", "price", "availability_adjusted_xpts", "weighted_xpts_3", "weighted_xpts_5",
-               net_column, "availability"]
+               net_column, "availability", "overall_signal", "action"]
     result = result[[column for column in columns if column in result]].copy()
     result["Signal"] = result.get(net_column, pd.Series(index=result.index, dtype=float)).map(
         lambda value: transfer_signal(value, threshold)
@@ -112,5 +115,5 @@ def prepare_replacement_table(frame: pd.DataFrame, predictions: pd.DataFrame,
     return result.rename(columns={
         "in": "Player", "team": "Team", "price": "Price", "availability_adjusted_xpts": "Next GW xPts",
         "weighted_xpts_3": "3-GW xPts", "weighted_xpts_5": "5-GW xPts", net_column: "Expected Gain",
-        "availability": "Availability",
+        "availability": "Availability", "overall_signal": "Overall Signal", "action": "Action",
     }).round(2)

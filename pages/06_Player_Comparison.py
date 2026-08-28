@@ -20,6 +20,8 @@ if require_predictions(bundle):
                "weighted_xpts_3", "weighted_xpts_5", "xG_last_3", "xA_last_3", "xGI_last_3",
                "expected_minutes_proxy", "avg_fixture_difficulty", "ceiling_score", "risk_adjusted_utility",
                "selected_by_percent", "availability"] if column in selected]
+    columns += [column for column in ["overall_signal", "action", "signal_reason", "risk_reason"]
+                if column in selected and column not in columns]
     st.dataframe(format_player_table(selected[columns]), width="stretch", hide_index=True)
     metrics = [column for column in ["availability_adjusted_xpts", "weighted_xpts_3", "weighted_xpts_5",
                "xGI_last_3", "ceiling_score", "risk_adjusted_utility"] if column in selected]

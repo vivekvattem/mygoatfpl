@@ -25,3 +25,6 @@ else:
     right.subheader(f"Worst next {horizon} GW runs")
     right.dataframe(rankings.nlargest(5, metric)[["team_name", metric]], hide_index=True, width="stretch")
     st.caption("Official FDR is always shown numerically. Model opponent strength is based only on completed fixtures known now.")
+    st.subheader("Team fixture signals")
+    if not bundle.team_fixture_signals.empty:
+        st.dataframe(bundle.team_fixture_signals, width="stretch", hide_index=True)

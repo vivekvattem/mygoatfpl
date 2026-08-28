@@ -1,5 +1,7 @@
 import pandas as pd
 
+from fpl_predictor.ui.components import action_badge, risk_summary, signal_badge
+
 from fpl_predictor.ui.formatting import (
     decision_status_label, format_player_table, prepare_one_transfer_table, prepare_replacement_table,
     prepare_two_transfer_table, safe_public_summary, scenario_mode_label, transfer_signal, transfer_status_badge,
@@ -46,3 +48,11 @@ def test_transfer_tables_render_without_downloads():
     assert {"Player", "Expected Gain", "Availability", "Signal"}.issubset(
         prepare_replacement_table(one, players, 5, 1.5)
     )
+
+
+def test_signal_helpers_always_include_text_and_risk_reason():
+    assert "GREEN" in signal_badge("GREEN") and "BUY" in action_badge("BUY")
+    players = pd.DataFrame({"player": ["A"], "overall_signal": ["RED"], "action": ["WATCH / HOLD"],
+                            "risk_reason": ["low expected minutes"], "weighted_xpts_5": [3.0]})
+    summary = risk_summary(players)
+    assert summary.iloc[0].risk_reason and summary.iloc[0].overall_signal == "RED"

@@ -152,3 +152,40 @@ def require_predictions(bundle: DashboardBundle) -> bool:
         st.error("Live/training feature schema validation failed. Prediction display has been stopped.")
         return False
     return True
+
+
+SIGNAL_ICONS = {"GREEN": "🟢", "YELLOW": "🟡", "RED": "🔴", "GREY": "⚪"}
+
+
+def signal_badge(signal: str, label: str | None = None) -> str:
+    value = str(signal).upper() if str(signal).upper() in SIGNAL_ICONS else "GREY"
+    return f"{SIGNAL_ICONS[value]} {value}" + (f" — {label}" if label else "")
+
+
+def action_badge(action: str) -> str:
+    signal = "GREEN" if action in {"BUY", "HOLD"} else "RED" if action == "SELL" else "YELLOW"
+    return signal_badge(signal, action)
+
+
+def risk_summary(players: pd.DataFrame, limit: int = 3) -> pd.DataFrame:
+    if players.empty or "overall_signal" not in players:
+        return pd.DataFrame()
+    order = pd.Categorical(players.overall_signal, categories=["RED", "YELLOW", "GREY", "GREEN"], ordered=True)
+    result = players.assign(_order=order).sort_values(["_order", "weighted_xpts_5"], ascending=[True, True])
+    columns = [column for column in ["player", "overall_signal", "action", "risk_reason"] if column in result]
+    return result.head(limit)[columns]
+
+
+def fixture_alert(gw: int, label: str, teams: list[str], status: str = "CONFIRMED") -> None:
+    signal = "RED" if label == "BGW" else "YELLOW" if label == "TGW" else "GREEN"
+    with st.container(border=True):
+        st.markdown(f"**{signal_badge(signal, f'GW{gw} {label}')}**")
+        st.write(", ".join(teams))
+        st.caption(f"Status: {status}")
+
+
+def chip_card(label: str, signal: str, score: object, reason: str) -> None:
+    with st.container(border=True):
+        st.markdown(f"**{label}: {signal_badge(signal)}**")
+        st.metric("Score", "—" if score is None or pd.isna(score) else f"{float(score):.2f}")
+        st.caption(reason)
