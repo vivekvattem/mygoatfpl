@@ -11,6 +11,10 @@ st.title("Player Rankings")
 render_data_status(bundle)
 if require_predictions(bundle):
     players = bundle.predictions.copy()
+    required_identity = {"player", "team", "position", "price"}
+    if not required_identity.issubset(players.columns):
+        st.warning(f"Player rankings are partial. Missing identity fields: {sorted(required_identity - set(players.columns))}")
+        st.stop()
     controls = st.columns(4)
     positions = controls[0].multiselect("Position", sorted(players.position.dropna().unique()), default=[])
     teams = controls[1].multiselect("Team", sorted(players.team.dropna().unique()), default=[])
@@ -34,6 +38,9 @@ if require_predictions(bundle):
                "5-GW weighted xPts": "weighted_xpts_5", "Value": "value", "Ceiling score": "ceiling_score",
                "Risk-adjusted utility": "risk_adjusted_utility", "Ownership": "selected_by_percent"}
     available_metrics = {label: column for label, column in metrics.items() if column in players}
+    if not available_metrics:
+        st.info("Projection rankings are unavailable because no supported projection columns are present.")
+        st.stop()
     label = st.selectbox("Rank by", list(available_metrics), index=min(2, len(available_metrics) - 1))
     metric = available_metrics[label]
     ranked = players.nlargest(top_n, metric)

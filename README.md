@@ -27,16 +27,19 @@ API ingestion → clean data → feature engineering → prediction
 
 Each layer is kept replaceable. Current and historical ingestion are separate, and historical IDs are never joined directly to current API IDs. The historical dataset uses one row per player per Gameweek, with every outcome-derived predictor restricted to information available before the target Gameweek.
 
-## Setup
+## Fresh Install
 
-Python 3.11 or newer is required.
+Python 3.12 is the recommended local and Streamlit Community Cloud runtime. Python 3.11–3.14 are supported by the declared direct dependencies; 3.12 is the reproducible serving target because it is Streamlit Community Cloud's default and has broad binary-wheel support.
 
 ```bash
-python -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-python scripts/refresh_data.py
-pytest
+python -m pip install --upgrade pip
+python -m pip install -e .
+python -c "import fpl_predictor; print(fpl_predictor.__file__)"
+python -m pip check
+python -m pytest
+python scripts/deployment_check.py
 ```
 
 On Windows PowerShell, activate with:
@@ -45,7 +48,7 @@ On Windows PowerShell, activate with:
 .venv\Scripts\Activate.ps1
 ```
 
-For an editable development installation, use `pip install -e .`.
+The package uses a standard setuptools `src` layout. Neither `PYTHONPATH=src` nor application-level `sys.path` changes are supported or required.
 
 Build the historical dataset with:
 
@@ -108,6 +111,7 @@ Run an explicitly labelled transfer scenario when bank/free transfers are known 
 
 ```bash
 source .venv/bin/activate
+python scripts/deployment_check.py
 streamlit run app.py
 ```
 
@@ -120,6 +124,8 @@ Refresh performs one of three explicit workflows:
 - a missing manual squad still refreshes the all-player rankings, while clearly reporting that personalization was skipped.
 
 If refresh fails, the last successful files remain visible and are marked **STALE DATA** when older than the configured TTL. Expected API, entry, squad, financial-state, artifact, and schema errors are shown as user-facing messages.
+
+A fresh session does not require `data/live/manual_squad.json`. Player rankings remain usable after a live refresh, while personalized XI, captaincy, transfer, and chip views display a no-squad explanation. Uploaded squads are validated before activation and stored in a browser-session-specific directory on Cloud's ephemeral filesystem. Invalid uploads leave the previous valid session squad active.
 
 ## Generated Data
 
@@ -298,11 +304,32 @@ Configure Community Cloud with:
 Repository: vivekvattem/mygoatfpl
 Branch:     main
 Main file:  app.py
+Python:     3.12
 ```
 
-Push the repository including `app.py`, `pages/`, `.streamlit/config.toml`, package source, the small production `models/ridge_*` artifacts, and compact Phase 4 report files. No secrets are required for the official public FPL endpoints. Future secrets belong in the Cloud console or an uncommitted `.streamlit/secrets.toml`.
+Select Python 3.12 in Community Cloud's Advanced settings. The root `requirements.txt` installs the repository itself with `-e .`, so a fresh container imports `fpl_predictor` normally. Push the repository including `app.py`, `pages/`, `.streamlit/config.toml`, package source, the small production `models/ridge_*` artifacts, and compact Phase 4 report files. No secrets are required for the official public FPL endpoints. Future secrets belong in the Cloud console or an uncommitted `.streamlit/secrets.toml`.
 
 All runtime paths derive from the repository root. Large historical datasets, current API snapshots, and generated live CSV/JSON files remain excluded from Git; the dashboard can recreate live outputs through Refresh.
+
+The production Ridge artifacts are validated at deployment time: four position models, their metadata, the global fallback, and the 33-feature serving schema must all load. Training is never triggered by app startup. `scikit-learn` is pinned to the artifact-compatible serving version; other direct dependencies use bounded ranges, while Streamlit itself is pinned.
+
+### Deployment Troubleshooting
+
+- `ModuleNotFoundError: fpl_predictor`: run `python -m pip install -e .` from the repository root and inspect `python -m pip --version` for interpreter mismatch. On macOS only, also check whether the editable `.pth` file was assigned the filesystem `hidden` flag; that local filesystem condition is not a Cloud/Linux packaging issue.
+- No live data: use **Refresh FPL Data**. If the official API is temporarily unavailable, cached outputs remain visible as stale; with no cache the app shows a retry message.
+- No personalized squad: upload a validated `manual_squad.json` in Settings or choose public picks. Missing bank/free transfers/selling prices remain unknown and block strict transfer advice.
+- Schema mismatch: prediction display stops and reports expected/available feature counts; malformed input is never sent to a model.
+- No analyst key: this is supported. The UI reports `AI provider: Disabled` and uses the deterministic analyst.
+
+Run the complete deployment preflight with:
+
+```bash
+python -m pip install -e .
+python -m pip check
+python -m pytest
+python scripts/deployment_check.py
+streamlit run app.py --server.headless true
+```
 
 ### Current Dashboard Limitations
 

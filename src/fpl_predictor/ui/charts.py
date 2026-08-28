@@ -40,6 +40,9 @@ def fixture_run_chart(summary: pd.DataFrame, horizon: int):
 
 
 def model_comparison_chart(results: pd.DataFrame):
+    required = {"split", "model", "mae", "spearman", "top_25_precision", "ndcg_25"}
+    if results.empty or not required.issubset(results.columns):
+        return go.Figure()
     filtered = results[(results.split.eq("validation")) & results.model.isin(["Ridge", "Random Forest", "HistGradientBoosting"])]
     if filtered.empty:
         return go.Figure()
@@ -50,6 +53,9 @@ def model_comparison_chart(results: pd.DataFrame):
 
 
 def calibration_chart(calibration: pd.DataFrame):
+    required = {"model", "mean_predicted", "mean_actual", "split", "sample_count", "prediction_bin"}
+    if calibration.empty or not required.issubset(calibration.columns):
+        return go.Figure()
     selected = calibration[calibration.model.str.contains("Ridge", na=False)]
     figure = px.scatter(selected, x="mean_predicted", y="mean_actual", color="split",
                         size="sample_count", hover_name="prediction_bin",

@@ -6,7 +6,8 @@ import pytest
 from fpl_predictor.config import PROJECT_ROOT
 from fpl_predictor.ui.state import (
     AppSettings, activate_uploaded_squad, active_squad_source, get_active_squad_file,
-    project_relative_path, transfer_state_label, validate_settings, write_uploaded_squad_to_runtime,
+    project_relative_path, runtime_squad_path, transfer_state_label, validate_settings,
+    write_uploaded_squad_to_runtime,
 )
 
 
@@ -81,3 +82,10 @@ def test_valid_upload_becomes_active_and_is_session_scoped(tmp_path, legal_squad
     fresh_session = {"active_squad_file": None, "squad_file_path_input": ""}
     assert get_active_squad_file(fresh_session) != runtime
     assert active_squad_source(fresh_session) != "Uploaded squad for this session"
+
+
+def test_runtime_upload_paths_are_isolated_between_cloud_sessions(monkeypatch, tmp_path):
+    monkeypatch.setattr("fpl_predictor.ui.state.LIVE_DATA_DIR", tmp_path)
+    first, second = {}, {}
+    assert runtime_squad_path(first) != runtime_squad_path(second)
+    assert runtime_squad_path(first) == runtime_squad_path(first)

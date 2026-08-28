@@ -1,13 +1,6 @@
 """Conversational, evidence-grounded explanation layer for current FPL decisions."""
 
-from pathlib import Path
-import sys
-
 import streamlit as st
-
-SRC_ROOT = Path(__file__).resolve().parents[1] / "src"
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
 
 from fpl_predictor.analyst.citations import freshness_label  # noqa: E402
 from fpl_predictor.analyst.provider import provider_from_config  # noqa: E402

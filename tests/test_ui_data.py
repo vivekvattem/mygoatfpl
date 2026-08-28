@@ -76,6 +76,20 @@ def test_missing_manual_squad_still_refreshes_rankings(monkeypatch, tmp_path):
     assert "optimization was skipped" in result.message
 
 
+def test_api_refresh_failure_preserves_cached_outputs(monkeypatch, tmp_path):
+    cached = tmp_path / "live_summary.json"
+    cached.write_text('{"created_at": "previous"}')
+    before = cached.read_bytes()
+    monkeypatch.setattr(ui_data, "LIVE_DATA_DIR", tmp_path)
+    monkeypatch.setattr(
+        "fpl_predictor.ui.data.subprocess.run",
+        lambda *args, **kwargs: type("Completed", (), {"returncode": 1, "stdout": "", "stderr": "API down"})(),
+    )
+    result = run_pipeline_refresh(AppSettings(squad_file=tmp_path / "missing.json"))
+    assert not result.success and "API down" in result.message
+    assert cached.read_bytes() == before
+
+
 def test_sparse_minutes_are_safe_for_projection_chart():
     players = pd.DataFrame({"player": ["A", "B"], "team": ["X", "Y"],
                             "position": ["MID", "FWD"], "price": [7.0, 8.0],

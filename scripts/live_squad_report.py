@@ -10,7 +10,6 @@ import sys
 from dotenv import load_dotenv
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT / "src")); sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 
 from fpl_predictor.api import FPLAPIError  # noqa: E402
 from fpl_predictor.config import LIVE_DATA_DIR  # noqa: E402

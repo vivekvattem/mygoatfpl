@@ -5,14 +5,12 @@ import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-import sys
 
 import pandas as pd
 
 os.environ.setdefault("LOKY_MAX_CPU_COUNT", "1")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from fpl_predictor.calibration import calibration_table  # noqa: E402
 from fpl_predictor.config import HISTORICAL_ML_DIR, MODEL_DIR  # noqa: E402

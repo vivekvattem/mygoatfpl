@@ -1,20 +1,12 @@
 """Streamlit entrypoint for the read-only FPL decision dashboard."""
 
-from pathlib import Path
-import sys
-
 import pandas as pd
 import streamlit as st
 
-# Streamlit Community Cloud runs from the repository root; adding the local
-# src layout explicitly also keeps local launches reliable from paths with spaces.
-SRC_ROOT = Path(__file__).resolve().parent / "src"
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
-
 from fpl_predictor.ui.components import (
     cached_analyst_context, configure_page, first_existing_column, render_analyst_result, render_data_status,
-    render_downloads, render_kpis, render_pitch, render_sidebar, require_predictions, risk_summary, signal_badge,
+    render_downloads, render_kpis, render_no_squad_state, render_pitch, render_sidebar, require_predictions,
+    risk_summary, signal_badge,
 )
 from fpl_predictor.ui.data import dashboard_summary
 from fpl_predictor.analyst.deterministic import deterministic_answer
@@ -36,6 +28,17 @@ if "last_refresh_error" in st.session_state:
 render_data_status(bundle)
 
 if require_predictions(bundle):
+    if bundle.squad.empty:
+        render_no_squad_state()
+        projection = first_existing_column(bundle.predictions, (
+            "weighted_xpts_5", "xpts_5gw", "five_gw_xpts", "availability_adjusted_xpts", "raw_xpts", "xpts",
+        ))
+        if projection and "player" in bundle.predictions:
+            st.subheader("Live player projections")
+            columns = [column for column in ("player", "team", "position", "price", projection)
+                       if column in bundle.predictions]
+            st.dataframe(bundle.predictions.nlargest(10, projection)[columns], width="stretch", hide_index=True)
+        st.stop()
     render_kpis(bundle)
     st.subheader("Squad signals")
     if not bundle.squad.empty and "overall_signal" in bundle.squad:

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 from typing import Any, Mapping
+from uuid import uuid4
 
 from fpl_predictor.config import LIVE_DATA_DIR, PROJECT_ROOT
 from fpl_predictor.entry import load_manual_squad
@@ -90,6 +91,20 @@ def write_uploaded_squad_to_runtime(contents: bytes, players, runtime_path: Path
         pending.unlink(missing_ok=True)
         raise
     return target
+
+
+def initialize_runtime_session(state: dict[str, Any]) -> str:
+    """Give each browser session a private upload namespace."""
+    token = str(state.get("runtime_session_id") or "").strip()
+    if not token:
+        token = uuid4().hex
+        state["runtime_session_id"] = token
+    return token
+
+
+def runtime_squad_path(state: dict[str, Any]) -> Path:
+    """Return a session-isolated path in Cloud's ephemeral runtime filesystem."""
+    return LIVE_DATA_DIR / "runtime" / initialize_runtime_session(state) / "manual_squad.json"
 
 
 def activate_uploaded_squad(state: dict[str, Any], runtime_path: Path) -> None:

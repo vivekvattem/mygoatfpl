@@ -11,7 +11,6 @@ import pandas as pd
 os.environ.setdefault("LOKY_MAX_CPU_COUNT", "1")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from fpl_predictor.config import HISTORICAL_ML_DIR, MODEL_DIR, ensure_data_directories  # noqa: E402
 from fpl_predictor.feature_registry import load_feature_registry  # noqa: E402

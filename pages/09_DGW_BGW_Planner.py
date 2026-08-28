@@ -1,13 +1,7 @@
 """Confirmed official fixture calendar and Double/Blank Gameweek planner."""
 
-from pathlib import Path
-import sys
-
 import pandas as pd
 import streamlit as st
-
-SRC_ROOT = Path(__file__).resolve().parents[1] / "src"
-if str(SRC_ROOT) not in sys.path: sys.path.insert(0, str(SRC_ROOT))
 
 from fpl_predictor.config import LIVE_DATA_DIR, RAW_DATA_DIR  # noqa: E402
 from fpl_predictor.fixture_calendar import fixture_matrix  # noqa: E402

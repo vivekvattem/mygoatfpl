@@ -12,6 +12,9 @@ settings, bundle = render_sidebar()
 st.title("Player Comparison")
 render_data_status(bundle)
 if require_predictions(bundle):
+    if "player" not in bundle.predictions or bundle.predictions.player.dropna().empty:
+        st.info("Player comparison is unavailable because player identity data is missing.")
+        st.stop()
     players = bundle.predictions.sort_values("player")
     names = players.player.tolist()
     left, right = st.columns(2)
@@ -27,6 +30,9 @@ if require_predictions(bundle):
     st.dataframe(format_player_table(selected[columns]), width="stretch", hide_index=True)
     metrics = [column for column in ["availability_adjusted_xpts", "weighted_xpts_3", "weighted_xpts_5",
                "xGI_last_3", "ceiling_score", "risk_adjusted_utility"] if column in selected]
-    chart = selected[["player", *metrics]].melt(id_vars="player", var_name="Metric", value_name="Value")
-    st.plotly_chart(px.bar(chart, x="Metric", y="Value", color="player", barmode="group"), width="stretch")
+    if metrics:
+        chart = selected[["player", *metrics]].melt(id_vars="player", var_name="Metric", value_name="Value")
+        st.plotly_chart(px.bar(chart, x="Metric", y="Value", color="player", barmode="group"), width="stretch")
+    else:
+        st.info("Comparable projection metrics are unavailable for these players.")
     render_explain_button(f"Compare {player_a} and {player_b}", bundle, settings, "explain_comparison")

@@ -10,7 +10,6 @@ import sys
 import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT / "src")); sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 
 from fpl_predictor.captaincy import rank_captains  # noqa: E402
 from fpl_predictor.config import HISTORICAL_ML_DIR, LIVE_DATA_DIR  # noqa: E402

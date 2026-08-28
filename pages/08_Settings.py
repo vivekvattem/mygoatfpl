@@ -8,7 +8,7 @@ from fpl_predictor.ui.components import (
     cached_analyst_context, cached_bundle, configure_page, render_sidebar,
 )
 from fpl_predictor.ui.state import (
-    activate_uploaded_squad, active_squad_source, write_uploaded_squad_to_runtime,
+    activate_uploaded_squad, active_squad_source, runtime_squad_path, write_uploaded_squad_to_runtime,
 )
 
 configure_page("Settings")
@@ -41,7 +41,9 @@ uploaded = st.file_uploader("Upload manual_squad.json", type=["json"], key="squa
 if uploaded is not None and st.button("Use uploaded squad for this session", key="activate_uploaded_squad"):
     try:
         bootstrap = json.loads((RAW_DATA_DIR / "bootstrap_static.json").read_text(encoding="utf-8"))
-        runtime = write_uploaded_squad_to_runtime(uploaded.getvalue(), load_players(bootstrap))
+        runtime = write_uploaded_squad_to_runtime(
+            uploaded.getvalue(), load_players(bootstrap), runtime_squad_path(st.session_state)
+        )
         activate_uploaded_squad(st.session_state, runtime)
         # Only invalidates outputs derived from the selected squad; cached live API
         # snapshots and model artifacts stay intact.

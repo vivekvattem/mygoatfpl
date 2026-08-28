@@ -1,13 +1,7 @@
 """Read-only Wildcard, Free Hit, Bench Boost, and Triple Captain planner."""
 
-from pathlib import Path
-import sys
-
 import pandas as pd
 import streamlit as st
-
-SRC_ROOT = Path(__file__).resolve().parents[1] / "src"
-if str(SRC_ROOT) not in sys.path: sys.path.insert(0, str(SRC_ROOT))
 
 from fpl_predictor.chips import (  # noqa: E402
     budget_legal_chip_gains, build_chip_plan, resolve_chip_states,

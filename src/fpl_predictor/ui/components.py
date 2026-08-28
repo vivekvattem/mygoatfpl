@@ -7,8 +7,11 @@ import pandas as pd
 import streamlit as st
 
 from fpl_predictor.ui.data import DashboardBundle, dashboard_summary, load_dashboard_bundle, run_pipeline_refresh
+from fpl_predictor.ui.contracts import first_existing_column
 from fpl_predictor.ui.formatting import money, points, scenario_mode_label
-from fpl_predictor.ui.state import AppSettings, SESSION_DEFAULTS, get_active_squad_file, project_relative_path
+from fpl_predictor.ui.state import (
+    AppSettings, SESSION_DEFAULTS, get_active_squad_file, initialize_runtime_session, project_relative_path,
+)
 
 
 def configure_page(title: str) -> None:
@@ -18,6 +21,7 @@ def configure_page(title: str) -> None:
 def initialize_session() -> None:
     for key, value in SESSION_DEFAULTS.items():
         st.session_state.setdefault(key, value)
+    initialize_runtime_session(st.session_state)
 
 
 def current_settings() -> AppSettings:
@@ -93,7 +97,7 @@ def render_sidebar() -> tuple[AppSettings, DashboardBundle]:
 
 def render_data_status(bundle: DashboardBundle) -> None:
     if not bundle.status.available:
-        st.error(bundle.status.message)
+        st.error("Live FPL data is temporarily unavailable. Please retry shortly.")
         return
     if bundle.status.stale:
         st.warning(bundle.status.message)
@@ -146,13 +150,28 @@ def render_downloads(bundle: DashboardBundle) -> None:
 
 def require_predictions(bundle: DashboardBundle) -> bool:
     if bundle.predictions.empty:
-        st.error("No live predictions are available. Use Refresh FPL Data and check model artifacts/schema.")
+        st.error("Prediction pipeline unavailable")
+        st.info("Live FPL data is temporarily unavailable. Please retry shortly or use Refresh FPL Data.")
         return False
     schema = bundle.live_summary.get("schema_validation", {})
     if schema and not schema.get("passed", False):
-        st.error("Live/training feature schema validation failed. Prediction display has been stopped.")
+        required, available = schema.get("required", "?"), schema.get("available", "?")
+        st.error("Prediction pipeline unavailable")
+        st.warning(f"Live schema mismatch detected. Expected: {required}. Available: {available}.")
+        with st.expander("Schema diagnostics", expanded=False):
+            st.write({"missing": schema.get("missing", []),
+                      "dtype_mismatches": schema.get("dtype_mismatches", [])})
         return False
     return True
+
+
+def render_no_squad_state() -> None:
+    """Explain fresh-session capabilities without inventing personalized decisions."""
+    st.info("No personalized squad loaded")
+    st.write(
+        "Live player rankings are available. Upload a manual squad or load public picks to unlock:\n\n"
+        "- optimized XI\n- captaincy\n- transfers\n- chip personalization"
+    )
 
 
 SIGNAL_ICONS = {"GREEN": "🟢", "YELLOW": "🟡", "RED": "🔴", "GREY": "⚪"}
@@ -166,11 +185,6 @@ def signal_badge(signal: str, label: str | None = None) -> str:
 def action_badge(action: str) -> str:
     signal = "GREEN" if action in {"BUY", "HOLD"} else "RED" if action == "SELL" else "YELLOW"
     return signal_badge(signal, action)
-
-
-def first_existing_column(frame: pd.DataFrame, candidates: list[str] | tuple[str, ...]) -> str | None:
-    """Return the first real column without inventing a missing projection."""
-    return next((column for column in candidates if column in frame.columns), None)
 
 
 def risk_summary(players: pd.DataFrame, limit: int = 3) -> pd.DataFrame:
