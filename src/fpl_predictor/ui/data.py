@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+from time import perf_counter
 from typing import Any
 
 import pandas as pd
@@ -49,6 +50,7 @@ class DashboardBundle:
     status: DataStatus
     fixture_calendar: pd.DataFrame = field(default_factory=pd.DataFrame)
     team_fixture_signals: pd.DataFrame = field(default_factory=pd.DataFrame)
+    latencies: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -215,11 +217,15 @@ def run_transfer_analysis(settings: AppSettings, timeout: int = 300) -> RefreshR
 
 
 def load_dashboard_bundle(settings: AppSettings) -> DashboardBundle:
+    bundle_started = perf_counter()
+    timings: dict[str, float] = {}
     validate_settings(settings)
+    live_started = perf_counter()
     live = _json(LIVE_DATA_DIR / "live_summary.json")
     predictions = _csv(LIVE_DATA_DIR / "player_decision_universe.csv")
     if predictions.empty:
         predictions = _csv(LIVE_DATA_DIR / "player_predictions.csv")
+    timings["live_output_load_seconds"] = perf_counter() - live_started
     squad = (load_manual_squad_view(settings.squad_file, predictions)
              if settings.squad_source == "manual_file" else _csv(LIVE_DATA_DIR / "my_squad.csv"))
     decision = _json(LIVE_DATA_DIR / "decision_summary.json")
@@ -247,16 +253,20 @@ def load_dashboard_bundle(settings: AppSettings) -> DashboardBundle:
     one_transfers = _csv(LIVE_DATA_DIR / "transfer_candidates.csv")
     two_transfers = _csv(LIVE_DATA_DIR / "two_transfer_candidates.csv")
     replacements = _csv(LIVE_DATA_DIR / "replacement_shortlists.csv")
+    fixture_started = perf_counter()
     calendar = load_confirmed_fixture_calendar(live.get("target_gw"), 10)
     fixture_signals = (team_fixture_signals(calendar, int(live["target_gw"]), 5)
                        if not calendar.empty and live.get("target_gw") is not None else pd.DataFrame())
+    timings["fixture_calendar_seconds"] = perf_counter() - fixture_started
     worthwhile_ids: list[int] = []
     net_column = f"net_gain_{settings.horizon}gw"
     if decision and net_column in one_transfers:
         worthwhile_ids = one_transfers.loc[one_transfers[net_column].ge(settings.minimum_gain), "out_id"].tolist()
     if not predictions.empty and not squad.empty:
         predictions["owned"] = predictions.player_id.isin(squad.player_id)
+    signal_started = perf_counter()
     predictions = add_player_signals(predictions, fixture_signals, worthwhile_ids) if not predictions.empty else predictions
+    timings["signal_generation_seconds"] = perf_counter() - signal_started
     if not squad.empty and not predictions.empty:
         signal_columns = [column for column in predictions if column.endswith("_signal") or column in
                           {"player_id", "action", "signal_reason", "risk_reason", "fixture_reason",
@@ -268,6 +278,7 @@ def load_dashboard_bundle(settings: AppSettings) -> DashboardBundle:
     # a different squad. Rebuild lineup/captain views from current predictions without
     # refreshing live FPL data or presenting stale transfer paths.
     if not decision and settings.squad_source == "manual_file" and not squad.empty:
+        lineup_started = perf_counter()
         try:
             lineup = optimize_starting_xi(squad, f"weighted_xpts_{settings.horizon}")
             captaincy = rank_captains(lineup.starting_11, settings.risk_profile)
@@ -284,9 +295,11 @@ def load_dashboard_bundle(settings: AppSettings) -> DashboardBundle:
             one_transfers = pd.DataFrame(); two_transfers = pd.DataFrame(); replacements = pd.DataFrame()
         except (KeyError, TypeError, ValueError, RuntimeError):
             pass
+        timings["lineup_optimization_seconds"] = perf_counter() - lineup_started
     phase4 = _json(HISTORICAL_ML_DIR / "phase4_summary.json")
     status_path = LIVE_DATA_DIR / ("decision_summary.json" if decision and not decision.get("runtime_personalization")
                                    else "live_summary.json")
+    timings["bundle_total_seconds"] = perf_counter() - bundle_started
     return DashboardBundle(
         predictions=predictions,
         squad=squad,
@@ -304,6 +317,7 @@ def load_dashboard_bundle(settings: AppSettings) -> DashboardBundle:
         status=data_status(status_path, settings.refresh_ttl),
         fixture_calendar=calendar,
         team_fixture_signals=fixture_signals,
+        latencies=timings,
     )
 
 

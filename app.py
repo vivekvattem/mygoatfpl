@@ -6,13 +6,14 @@ import streamlit as st
 from fpl_predictor.ui.components import (
     cached_analyst_context, configure_page, first_existing_column, render_analyst_result, render_data_status,
     render_downloads, render_kpis, render_no_squad_state, render_pitch, render_sidebar, require_predictions,
-    risk_summary, signal_badge,
+    render_reliability_status, risk_summary, signal_badge,
 )
 from fpl_predictor.ui.data import dashboard_summary
 from fpl_predictor.analyst.deterministic import deterministic_answer
 from fpl_predictor.analyst.provider import provider_from_config
 from fpl_predictor.analyst.service import AnalystService
 from fpl_predictor.ui.components import analyst_provider_config
+from fpl_predictor.ui.reliability import record_analyst_response
 
 configure_page("Dashboard")
 settings, bundle = render_sidebar()
@@ -26,6 +27,7 @@ if "last_refresh_message" in st.session_state:
 if "last_refresh_error" in st.session_state:
     st.error(st.session_state.pop("last_refresh_error"))
 render_data_status(bundle)
+render_reliability_status(bundle, settings)
 
 if require_predictions(bundle):
     if bundle.squad.empty:
@@ -80,14 +82,16 @@ if require_predictions(bundle):
     chip_overrides = {chip: st.session_state.get(f"chip_{chip}", "unknown") for chip in
                       ("wildcard", "free_hit", "bench_boost", "triple_captain")}
     weekly_context = cached_analyst_context(weekly_question, bundle, settings, tuple(chip_overrides.items()),
-                                            st.session_state.get("refresh_generation", 0))
+                                            st.session_state.get("analyst_generation", 0))
     with st.container(border=True):
         st.markdown(deterministic_answer(weekly_context.intent, weekly_context.payload, weekly_context.confidence))
         st.caption("Built from current structured engines; no LLM call was made.")
         provider = provider_from_config(analyst_provider_config())
         if provider.name != "disabled" and st.button("Explain this week", key="dashboard_explain_week"):
             universe = set(bundle.predictions.player.astype(str))
-            render_analyst_result(AnalystService(provider).answer_context(
+            render_analyst_result(AnalystService(
+                provider, monitor=lambda value: record_analyst_response(st.session_state, value)
+            ).answer_context(
                 weekly_question, weekly_context, universe))
     st.divider()
     st.subheader("Projected starting XI")

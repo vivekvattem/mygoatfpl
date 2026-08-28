@@ -136,4 +136,24 @@ SESSION_DEFAULTS = {
     "chip_free_hit": "unknown",
     "chip_bench_boost": "unknown",
     "chip_triple_captain": "unknown",
+    # Widget-owned reliability controls. Runtime refresh code never assigns to
+    # these keys after the widgets have been constructed.
+    "widget_auto_refresh": True,
+    "widget_refresh_interval_minutes": 10,
+    "widget_show_reliability_alerts": True,
+    "widget_show_player_change_alerts": True,
+    # Internal session-only monitoring state.
+    "runtime_last_refresh_check": None,
+    "runtime_last_refresh_success": None,
+    "runtime_last_refresh_failure": None,
+    "runtime_next_refresh": None,
+    "runtime_live_fingerprint": None,
+    "runtime_last_change": None,
+    "runtime_event_log": [],
+    "runtime_refresh_latencies": {},
+    "runtime_analyst_metrics": {},
+    "live_generation": 0,
+    "fixture_generation": 0,
+    "personalized_generation": 0,
+    "analyst_generation": 0,
 }

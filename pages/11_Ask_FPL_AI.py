@@ -10,6 +10,7 @@ from fpl_predictor.ui.components import (  # noqa: E402
     configure_page, render_sidebar,
 )
 from fpl_predictor.ui.data import dashboard_summary  # noqa: E402
+from fpl_predictor.ui.reliability import record_analyst_response
 
 
 configure_page("Ask FPL AI")
@@ -60,9 +61,11 @@ if question:
     with st.chat_message("assistant"):
         with st.spinner("Checking structured FPL evidence…"):
             context = cached_analyst_context(question, bundle, settings, tuple(overrides.items()),
-                                             st.session_state.get("refresh_generation", 0))
+                                             st.session_state.get("analyst_generation", 0))
             universe = set(bundle.predictions.player.astype(str)) if not bundle.predictions.empty else set()
-            response = AnalystService(provider).answer_context(question, context, universe)
+            response = AnalystService(
+                provider, monitor=lambda value: record_analyst_response(st.session_state, value)
+            ).answer_context(question, context, universe)
         st.markdown(response.answer)
         mode = "Deterministic fallback" if response.fallback_used else "Grounded AI explanation"
         st.caption(f"Confidence: {response.confidence} · {mode}")

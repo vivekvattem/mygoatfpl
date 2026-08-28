@@ -5,7 +5,7 @@ from fpl_predictor.config import RAW_DATA_DIR
 from fpl_predictor.loaders import load_players
 from fpl_predictor.squad_update import update_manual_squad
 from fpl_predictor.ui.components import (
-    cached_analyst_context, cached_bundle, configure_page, render_sidebar,
+    configure_page, render_sidebar,
 )
 from fpl_predictor.ui.state import (
     activate_uploaded_squad, active_squad_source, runtime_squad_path, write_uploaded_squad_to_runtime,
@@ -24,6 +24,11 @@ st.number_input("Live cache TTL (seconds)", min_value=60, max_value=3600, step=6
 st.caption("Scenario Mode is controlled from the shared sidebar: Assume current price = selling price.")
 if st.session_state.assume_selling_price_current:
     st.warning("SCENARIO MODE will be clearly marked on transfer outputs.")
+
+st.subheader("Reliability alerts")
+st.checkbox("Show reliability alerts", key="widget_show_reliability_alerts")
+st.checkbox("Show owned-player change alerts", key="widget_show_player_change_alerts")
+st.caption("Automatic refresh is active-session only. It stops when no browser session is running.")
 
 st.subheader("Chip availability")
 st.caption("Public pre-deadline chip availability is not assumed. Choose a manual state only when known.")
@@ -47,9 +52,8 @@ if uploaded is not None and st.button("Use uploaded squad for this session", key
         activate_uploaded_squad(st.session_state, runtime)
         # Only invalidates outputs derived from the selected squad; cached live API
         # snapshots and model artifacts stay intact.
-        cached_bundle.clear()
-        cached_analyst_context.clear()
-        st.session_state.refresh_generation = st.session_state.get("refresh_generation", 0) + 1
+        st.session_state.personalized_generation += 1
+        st.session_state.analyst_generation += 1
         st.session_state.last_squad_upload_message = (
             "Uploaded squad validated and activated for this session. "
             "Personalized dashboard views were rebuilt from current live predictions."
@@ -81,9 +85,8 @@ else:
             bootstrap = json.loads((RAW_DATA_DIR / "bootstrap_static.json").read_text(encoding="utf-8"))
             backup, _ = update_manual_squad(settings.squad_file, load_players(bootstrap), player_out, player_in,
                                              captain=captain, vice_captain=vice)
-            cached_bundle.clear()
-            cached_analyst_context.clear()
-            st.session_state.refresh_generation = st.session_state.get("refresh_generation", 0) + 1
+            st.session_state.personalized_generation += 1
+            st.session_state.analyst_generation += 1
             st.success(f"Squad updated and validated. Backup: {backup}")
         except (ValueError, OSError) as exc:
             st.error(f"Squad update failed: {exc}")

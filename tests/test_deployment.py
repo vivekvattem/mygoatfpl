@@ -73,3 +73,19 @@ def test_dashboard_explains_no_squad_without_fake_personalization(monkeypatch, t
     app = AppTest.from_file(str(PROJECT_ROOT / "app.py"), default_timeout=30).run()
     assert not list(app.exception)
     assert any("No personalized squad loaded" in item.value for item in app.info)
+
+
+def test_reliability_controls_default_to_safe_active_session_policy(monkeypatch, tmp_path) -> None:
+    live = tmp_path / "live"; raw = tmp_path / "raw"
+    live.mkdir(); raw.mkdir()
+    monkeypatch.setattr(ui_data, "LIVE_DATA_DIR", live)
+    monkeypatch.setattr(ui_data, "RAW_DATA_DIR", raw)
+    monkeypatch.setattr(ui_state, "LIVE_DATA_DIR", live)
+    components.cached_bundle.clear()
+    app = AppTest.from_file(str(PROJECT_ROOT / "app.py"), default_timeout=30).run()
+    assert not list(app.exception)
+    auto = next(item for item in app.checkbox if item.label == "Auto refresh")
+    interval = next(item for item in app.selectbox if item.label == "Refresh interval")
+    assert auto.value is True
+    assert interval.value == 10
+    assert any("Next refresh:" in item.value for item in app.caption)

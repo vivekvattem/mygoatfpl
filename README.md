@@ -6,9 +6,9 @@ FPL AI Predictor is a data-driven Fantasy Premier League decision engine. Its lo
 
 ## Current Status
 
-**Phase 9 — AI Analyst**
+**Phase 10 — Auto Refresh + Reliability**
 
-Phases 1–8 remain intact. Phase 9 adds a conversational, evidence-grounded explanation layer over the existing model, optimizers, fixture engine, signals, availability, and chip planner. The analyst is not a separate prediction engine. All major results render directly in Streamlit, and the app never logs in to FPL, executes transfers, or activates chips.
+Phases 1–9 remain intact. Phase 10 adds active-session automatic refresh, compact live-state fingerprinting, dependency-scoped cache generations, stale-data fallback, fixture/player change alerts, and a System Health page. All major status is visible in Streamlit, and the app never logs in to FPL, executes transfers, or activates chips.
 
 The original Phase 1 `attacking_score` remains a simple, explainable baseline:
 
@@ -115,7 +115,7 @@ python scripts/deployment_check.py
 streamlit run app.py
 ```
 
-The app opens with entry `8974446` explicitly labelled as a demo default. Select a squad source in the sidebar, preserve bank/free transfers as **Unknown** unless authoritative values are supplied, and click **Refresh FPL Data** when a new pipeline run is wanted. Widget changes and page navigation load cached outputs; they do not call the FPL API or rerun five-Gameweek optimization.
+The app opens with entry `8974446` explicitly labelled as a demo default. Select a squad source in the sidebar, preserve bank/free transfers as **Unknown** unless authoritative values are supplied, and click **Refresh Now** to bypass the live check timer once. Widget changes and page navigation load cached outputs; they do not call the FPL API or rerun five-Gameweek optimization.
 
 Refresh performs one of three explicit workflows:
 
@@ -366,6 +366,32 @@ Grounding checks reject current players absent from supplied context, unsupporte
 
 The analyst explains structured estimates; it does not browse news, speculate about fixtures, or mutate an FPL account. Its answers depend on data freshness. Ridge ceiling compression and heuristic expected minutes remain, and unknown bank, free transfers, selling prices, or private chip state restrict authoritative advice. Disabling the AI provider does not reduce the model, optimizer, or deterministic analyst functionality.
 
+## Phase 10 Auto Refresh and Reliability
+
+Auto refresh defaults to **ON** at 10 minutes, with supported intervals of 5, 10, 15, 30, and 60 minutes. A Streamlit fragment provides a non-blocking one-minute heartbeat; the selected policy decides whether a live check is due. It does not use a loop, sleep, JavaScript, cron, or a background worker. **In-app auto refresh runs only while an application session is active.** Streamlit Cloud may sleep, and 24/7 monitoring requires a future external scheduler.
+
+Each due check fetches official bootstrap and fixture JSON and computes stable compact hashes over public fields that affect serving: prices, availability, chance of playing, ownership, event transfers, player news timestamps, fixtures, kickoff times, official FDR, and Gameweek metadata. Schema keys have a separate fingerprint. Changes are classified as `NO_CHANGE`, `PLAYER_DATA_CHANGED`, `FIXTURES_CHANGED`, `GAMEWEEK_CHANGED`, `SCHEMA_CHANGED`, or `MULTIPLE_CHANGES`.
+
+The dependency generations are deliberately scoped:
+
+```text
+Official FPL API
+├── player live state
+│   └── live features/predictions/signals
+│       └── personalized XI/captaincy/transfers/chips + analyst context
+└── fixtures
+    └── calendar/FDR/DGW-BGW/multi-GW projections
+        └── predictions/signals + personalized decisions + analyst context
+```
+
+`live_generation`, `fixture_generation`, `personalized_generation`, and `analyst_generation` replace broad timed cache clearing. An unchanged check keeps downstream outputs. A player-only change leaves the fixture generation intact; a fixture change invalidates both fixture and live dependents. Historical datasets and production models are never rebuilt. Manual refresh bypasses timing once but uses the same comparison and invalidation rules.
+
+If the official API or rebuild fails, the prior successful prediction and decision files remain available and the app clearly reports stale/degraded state plus the next retry. With no valid prior outputs, prediction-dependent views are unavailable without exposing a traceback. Session state stores at most 50 reliability events and resets on a Cloud restart; it is not external persistence.
+
+The **System Health** page shows API check/failure timing, data freshness, abbreviated fingerprint, feature-schema parity, cached production-artifact validation, squad and finance state, fixture changes and schedule alerts, analyst provider/fallback/grounding metrics, refresh latency, and live prediction-distribution monitoring. Production artifacts are validated once through a resource cache. Provider-disabled deterministic analyst mode is supported and healthy by itself. Completed-Gameweek MAE, RMSE, Spearman, Top-10 overlap, and calibration bins are shown only after at least three Gameweeks of prediction/actual pairs; Phase 10 never retrains or changes model weights.
+
+Fixture comparisons detect additions, removals, Gameweek moves, kickoff changes, official FDR changes, and home/away-team mutations. Changes that create or remove a Blank, Double, or Triple Gameweek are elevated as schedule alerts. Player alerts cover meaningful price, official status, chance-of-playing, and ownership changes; owned-player changes are prioritized on the Dashboard.
+
 ## Roadmap
 
 - Phase 1 — Current FPL data ingestion and baseline analytics
@@ -376,7 +402,8 @@ The analyst explains structured estimates; it does not browse news, speculate ab
 - Phase 6 — Transfer / XI / captain optimizer
 - Phase 7 — Streamlit dashboard
 - Phase 8 — DGW/BGW, signals, and chip planner
-- Phase 9 — grounded AI analyst and explainable decision layer (current)
-- Phase 10 — monitoring and automated evaluation (not started)
+- Phase 9 — grounded AI analyst and explainable decision layer
+- Phase 10 — active-session auto refresh, monitoring, and reliability (current)
+- Phase 11 — not started; requires explicit approval
 
 Future transfer recommendations will compare multi-Gameweek expected gains after hit costs and legal FPL constraints. If no legal move clears the improvement threshold, the recommendation will explicitly be `ROLL TRANSFER`.

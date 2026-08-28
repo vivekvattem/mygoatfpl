@@ -2,6 +2,7 @@
 
 import pandas as pd
 import streamlit as st
+from time import perf_counter
 
 from fpl_predictor.chips import (  # noqa: E402
     budget_legal_chip_gains, build_chip_plan, resolve_chip_states,
@@ -39,8 +40,12 @@ def _plan(players, squad, calendar, bank, start_gw, state_values, used_chips):
     wildcard_gain, free_hit_gains = budget_legal_chip_gains(players, squad, bank, start_gw)
     return build_chip_plan(calendar, squad, players, resolved, start_gw, 8, wildcard_gain, free_hit_gains)
 
+started = perf_counter()
 plan = _plan(bundle.predictions, bundle.squad, bundle.fixture_calendar, settings.bank, int(target_gw),
              tuple(overrides.items()), tuple(history["chips"]))
+latencies = dict(st.session_state.get("runtime_refresh_latencies") or {})
+latencies["chip_planner_seconds"] = perf_counter() - started
+st.session_state.runtime_refresh_latencies = latencies
 selected_gw = st.selectbox("Selected Gameweek", plan.gw.tolist())
 row = plan[plan.gw.eq(selected_gw)].iloc[0]
 columns = st.columns(4)

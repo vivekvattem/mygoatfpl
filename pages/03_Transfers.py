@@ -1,6 +1,7 @@
 """Explicit, read-only Streamlit boundary for the validated Phase 6 optimizer."""
 
 import streamlit as st
+from time import perf_counter
 
 from fpl_predictor.ui.components import configure_page, render_data_status, render_explain_button, render_sidebar
 from fpl_predictor.ui.data import run_transfer_analysis, transfer_cache_key, transfer_readiness
@@ -18,12 +19,17 @@ def _run_or_reuse(settings, cache_key: str) -> None:
     with st.status("Running transfer analysis…", expanded=True) as status:
         st.write("Using the existing Phase 6 optimizer with the current squad and live predictions…")
         st.write("Evaluating legal one- and two-transfer paths…")
+        started = perf_counter()
         result = run_transfer_analysis(settings)
+        latencies = dict(st.session_state.get("runtime_refresh_latencies") or {})
+        latencies["transfer_optimization_seconds"] = perf_counter() - started
+        st.session_state.runtime_refresh_latencies = latencies
         if result.success:
             results[cache_key] = result.completed_at.astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
             # Only change the dashboard bundle generation. The sidebar's live-data
             # cache is not broadly invalidated by a transfer-only scenario run.
-            st.session_state.refresh_generation = st.session_state.get("refresh_generation", 0) + 1
+            st.session_state.personalized_generation += 1
+            st.session_state.analyst_generation += 1
             status.update(label="Transfer analysis complete", state="complete")
             st.rerun()
         else:

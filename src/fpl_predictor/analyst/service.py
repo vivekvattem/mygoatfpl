@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 import logging
 import time
-from typing import Any
+from typing import Any, Callable
 
 from .context import AnalystContext, build_analyst_context
 from .deterministic import deterministic_answer
@@ -26,11 +26,14 @@ class AnalystResponse:
     fallback_used: bool
     validation_passed: bool
     latency_ms: int
+    failure_categories: tuple[str, ...] = ()
 
 
 class AnalystService:
-    def __init__(self, provider: AnalystProvider | None = None):
+    def __init__(self, provider: AnalystProvider | None = None,
+                 monitor: Callable[[AnalystResponse], None] | None = None):
         self.provider = provider or DisabledProvider()
+        self.monitor = monitor
 
     def answer(self, question: str, bundle: Any, settings: Any,
                chip_overrides: dict[str, str] | None = None) -> AnalystResponse:
@@ -53,15 +56,22 @@ class AnalystService:
             if grounding.passed:
                 return self._result(candidate, context, False, True, started)
             LOGGER.warning("analyst grounding failed: intent=%s failures=%s", context.intent, grounding.failures)
-            return self._result(fallback, context, True, False, started)
+            return self._result(fallback, context, True, False, started, grounding.failures)
         except (ProviderError, TimeoutError, ValueError, TypeError):
             LOGGER.warning("analyst provider failed: intent=%s provider=%s", context.intent, self.provider.name)
-            return self._result(fallback, context, True, True, started)
+            return self._result(fallback, context, True, True, started, ("provider_failure",))
 
     def _result(self, answer: str, context: AnalystContext, fallback: bool, validation: bool,
-                started: float) -> AnalystResponse:
+                started: float, failure_categories: tuple[str, ...] = ()) -> AnalystResponse:
         latency = int((time.perf_counter() - started) * 1000)
         LOGGER.info("analyst intent=%s provider=%s fallback=%s validation=%s latency_ms=%s",
                     context.intent, self.provider.name, fallback, validation, latency)
-        return AnalystResponse(answer, context.intent, context.confidence, context.evidence,
-                               context.evidence_details, self.provider.name, fallback, validation, latency)
+        response = AnalystResponse(answer, context.intent, context.confidence, context.evidence,
+                                   context.evidence_details, self.provider.name, fallback, validation, latency,
+                                   failure_categories)
+        if self.monitor is not None:
+            try:
+                self.monitor(response)
+            except (TypeError, ValueError, RuntimeError):
+                LOGGER.warning("analyst monitoring callback failed", exc_info=True)
+        return response
