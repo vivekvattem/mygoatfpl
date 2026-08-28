@@ -36,6 +36,12 @@ def test_all_package_modules_import_without_path_mutation() -> None:
     assert all("sys.path" not in path.read_text(encoding="utf-8") for path in application_sources)
 
 
+def test_dashboard_imports_shared_column_contract_from_its_defining_module() -> None:
+    """Avoid relying on a transitive components-module re-export in Cloud builds."""
+    source = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
+    assert "from fpl_predictor.ui.contracts import first_existing_column" in source
+
+
 def test_committed_production_artifacts_load() -> None:
     report = ProductionArtifacts(PROJECT_ROOT, HISTORICAL_ML_DIR / "phase4_training.json").validate_all()
     assert set(report["positions"]) == {"GK", "DEF", "MID", "FWD"}

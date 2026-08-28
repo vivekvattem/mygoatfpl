@@ -4,10 +4,11 @@ import pandas as pd
 import streamlit as st
 
 from fpl_predictor.ui.components import (
-    cached_analyst_context, configure_page, first_existing_column, render_analyst_result, render_data_status,
+    cached_analyst_context, configure_page, render_analyst_result, render_data_status,
     render_downloads, render_kpis, render_no_squad_state, render_pitch, render_sidebar, require_predictions,
     render_reliability_status, risk_summary, signal_badge,
 )
+from fpl_predictor.ui.contracts import first_existing_column
 from fpl_predictor.ui.data import dashboard_summary
 from fpl_predictor.analyst.deterministic import deterministic_answer
 from fpl_predictor.analyst.provider import provider_from_config
